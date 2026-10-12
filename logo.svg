@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none">
+  <!-- Clean Solid White Background -->
+  <rect width="512" height="512" rx="80" fill="#FFFFFF"/>
+
+  <defs>
+    <!-- Exact concentric inner clip (radius 176, uniform 16px gap inside r=192 inner edge of outer ring) -->
+    <clipPath id="inner-circle-clip">
+      <circle cx="256" cy="256" r="176"/>
+    </clipPath>
+
+    <!-- Clip for upper blue arc (cuts horizontally at y=232) -->
+    <clipPath id="upper-arc-clip">
+      <rect x="0" y="0" width="512" height="232"/>
+    </clipPath>
+  </defs>
+
+  <!-- 1. Concentric Inner Blue Diagnostic Ring (r=164, stroke=24 => outer=176, inner=152) -->
+  <g clip-path="url(#inner-circle-clip)">
+    <g clip-path="url(#upper-arc-clip)">
+      <circle cx="256" cy="256" r="164" stroke="#2563EB" stroke-width="24" fill="none"/>
+    </g>
+  </g>
+
+  <!-- 2. Bold Symmetrical Medical Cross + Central AI Node (Centered at 256, 192) -->
+  <path d="M 231 124 H 281 V 167 H 324 V 217 H 281 V 260 H 231 V 217 H 188 V 167 H 231 Z" fill="#2563EB"/>
+  <line x1="214" y1="234" x2="298" y2="150" stroke="#FFFFFF" stroke-width="11" stroke-linecap="butt"/>
+  <circle cx="256" cy="192" r="18" fill="#FFFFFF"/>
+
+  <!-- 3. Layered Dermal Waves (100% Clipped to r=176 Concentric Circle) -->
+  <g clip-path="url(#inner-circle-clip)">
+    <!-- Background Right-Rising Waves -->
+    <path d="M 235 352 C 295 288, 365 256, 450 256" stroke="#0F172A" stroke-width="26" stroke-linecap="butt" fill="none"/>
+    <path d="M 265 392 C 320 334, 380 302, 450 302" stroke="#0F172A" stroke-width="26" stroke-linecap="butt" fill="none"/>
+
+    <!-- White Mask + Crisp Gap Separator under Foreground Left-to-Right Waves -->
+    <path d="M 60 256 C 155 256, 215 325, 300 358 C 355 379, 405 372, 460 348 L 460 460 L 60 460 Z" fill="#FFFFFF"/>
+    <path d="M 60 256 C 155 256, 215 325, 300 358 C 355 379, 405 372, 460 348" stroke="#FFFFFF" stroke-width="56" stroke-linecap="butt" fill="none"/>
+
+    <!-- Foreground Left-to-Right Parallel Waves -->
+    <path d="M 60 256 C 155 256, 215 325, 300 358 C 355 379, 405 372, 460 348" stroke="#0F172A" stroke-width="26" stroke-linecap="butt" fill="none"/>
+    <path d="M 60 302 C 148 302, 208 371, 293 404 C 348 425, 398 418, 460 394" stroke="#0F172A" stroke-width="26" stroke-linecap="butt" fill="none"/>
+    <path d="M 60 348 C 140 348, 200 417, 285 450 L 60 450 Z" fill="#0F172A"/>
+  </g>
+
+  <!-- 4. Outer Bold Dermoscope Ring (Centered at 256, 256, r=210, stroke=36 => inner=192, outer=228) -->
+  <circle cx="256" cy="256" r="210" stroke="#0F172A" stroke-width="36" fill="none"/>
+</svg>
