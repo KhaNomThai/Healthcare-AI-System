@@ -53,7 +53,7 @@ def _find_best_available_model(device: torch.device):
         checkpoint = MODEL_REGISTRY[name]["checkpoint"]
         if checkpoint.exists():
             print(f"[INFO] Loading {name} from: {checkpoint}")
-            model = build_model(name, device)
+            model = build_model(name, device, pretrained=False)
             model.load_state_dict(
                 torch.load(checkpoint, map_location=device, weights_only=True)
             )

@@ -30,6 +30,8 @@ from data import val_test_transform
 from models import build_model
 from evaluate import load_all_metrics
 
+EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
+
 
 # =============================================================================
 # CSS Stylesheet
@@ -1017,12 +1019,19 @@ def launch_gradio_demo(
         print("[ERROR] Gradio is not installed. Run: pip install gradio")
         return
 
-    # Mutable state: currently loaded model
-    state = {
-        "model_name": initial_model_name,
-        "model": initial_model,
-    }
-    state["model"].eval()
+    # Shared read-only model cache; each browser session picks its model via its own dropdown value
+    initial_model.eval()
+    loaded_models = {initial_model_name: initial_model}
+
+    def _get_model(model_name: str) -> nn.Module:
+        if model_name not in loaded_models:
+            print(f"[INFO] Loading model: {model_name}")
+            model = build_model(model_name, device, pretrained=False)
+            model.load_state_dict(
+                torch.load(MODEL_REGISTRY[model_name]["checkpoint"], map_location=device, weights_only=True)
+            )
+            loaded_models[model_name] = model.eval()
+        return loaded_models[model_name]
 
     def _get_available_model_names() -> list:
         """Return clean list of model names that have a trained checkpoint (no percentages)."""
@@ -1036,40 +1045,33 @@ def launch_gradio_demo(
     def on_model_change(selected_model_name):
         """Handle model selection change using clean model names."""
         if not selected_model_name:
-            return _engine_status_html(state["model_name"])
+            return _engine_status_html(initial_model_name)
 
         model_name = selected_model_name.strip()
-        if model_name == state["model_name"]:
-            return _engine_status_html(model_name)
-
         checkpoint = MODEL_REGISTRY.get(model_name, {}).get("checkpoint")
         if checkpoint is None or not checkpoint.exists():
             return _engine_status_html(f"Checkpoint not found for {model_name}", is_error=True)
 
-        print(f"[INFO] Switching to model: {model_name}")
-        new_model = build_model(model_name, device)
-        new_model.load_state_dict(
-            torch.load(checkpoint, map_location=device, weights_only=True)
-        )
-        new_model.eval()
-
-        state["model_name"] = model_name
-        state["model"] = new_model
+        _get_model(model_name)  # preload so the next Analyze is fast
         return _engine_status_html(model_name)
 
-    def predict(input_image):
+    def predict(input_image, model_name):
         """Process uploaded image and return two-level classification result."""
         if input_image is None:
             return _placeholder_html()
 
         try:
+            model_name = (model_name or initial_model_name).strip()
+            if model_name not in MODEL_REGISTRY:
+                model_name = initial_model_name
+            model = _get_model(model_name)
             if not isinstance(input_image, Image.Image):
                 input_image = Image.fromarray(input_image)
             img = input_image.convert("RGB")
             img_tensor = val_test_transform(img).unsqueeze(0).to(device)
 
             with torch.no_grad():
-                logits = state["model"](img_tensor)
+                logits = model(img_tensor)
                 probs = torch.softmax(logits, dim=1)[0].cpu().numpy()
 
             cancer_prob = float(sum(probs[i] for i in CANCER_INDICES))
@@ -1092,7 +1094,7 @@ def launch_gradio_demo(
             top_prob = float(probs[top_idx])
 
             return _build_result_html(
-                state["model_name"],
+                model_name,
                 is_high_risk, cancer_prob, benign_prob,
                 cancer_subtypes, benign_subtypes,
                 top_idx, top_prob,
@@ -1210,6 +1212,15 @@ def launch_gradio_demo(
                             size="lg",
                         )
 
+                        example_files = sorted(EXAMPLES_DIR.glob("*.jpg"))
+                        if example_files:
+                            gr.Examples(
+                                examples=[[str(f)] for f in example_files],
+                                inputs=[input_image],
+                                label="Sample Images (ISIC 2019 held-out test set, CC BY-NC) -- click one, then Analyze",
+                                examples_per_page=8,
+                            )
+
                         gr.HTML("""
                         <div class="info-panel">
                             <div class="panel-header">
@@ -1257,7 +1268,7 @@ def launch_gradio_demo(
         )
         submit_btn.click(
             fn=predict,
-            inputs=[input_image],
+            inputs=[input_image, model_dropdown],
             outputs=[result_output],
         )
 
@@ -1266,9 +1277,8 @@ def launch_gradio_demo(
 
     print("[INFO] Launching Gradio Clinical Demo...")
     print("[INFO] Access the interface at: http://127.0.0.1:7860")
+    # Host/port come from GRADIO_SERVER_NAME / GRADIO_SERVER_PORT (default 127.0.0.1:7860)
     demo.launch(
-        server_name="127.0.0.1",
-        server_port=7860,
         share=False,
         favicon_path=favicon_arg,
     )

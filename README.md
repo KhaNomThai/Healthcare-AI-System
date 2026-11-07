@@ -261,3 +261,28 @@ The web interface is structured into two dedicated clinical tabs:
 - **Summary Metrics Matrix:** Side-by-side table comparing all 12 performance indicators with automatic `(BEST)` identification.
 - **Per-Class F1 Breakdown Table:** Granular F1 scores for each of the 8 conditions categorized by clinical group.
 - **Clinical Evaluation Notes:** Contextual medical guidance explaining Differential Diagnosis for academic presentation.
+
+---
+
+## 13. Browser Web App (Static Deployment)
+
+`web/` is a React (Vite + Tailwind) version of the demo that runs the models **entirely in the browser**
+with ONNX Runtime Web, so it can be hosted as static files (no Python server, images never leave the device).
+
+```bash
+pip install onnx onnxscript onnxruntime   # one-time, for the export step
+python export_onnx.py                     # .pth -> web/public/models/*.onnx (+ metrics, samples); re-run after retraining
+
+cd web
+npm install
+npm run dev                               # local preview at http://localhost:5173
+npm run build                             # static site in web/dist/
+```
+
+Deploy `web/dist/` to any static host. For a Hugging Face **static** Space (free):
+
+```bash
+hf repos create <user>/derma-ai --type space --sdk static --public   # first time only
+hf upload <user>/derma-ai web/dist . --type space
+hf upload <user>/derma-ai space/README.md README.md --type space
+```

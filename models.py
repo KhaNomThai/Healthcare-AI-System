@@ -19,12 +19,12 @@ from config import NUM_CLASSES, MODEL_REGISTRY
 # Internal Builders
 # =============================================================================
 
-def _build_resnet50(device: torch.device, num_classes: int = NUM_CLASSES) -> nn.Module:
+def _build_resnet50(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build ResNet50 with custom classifier head.
     Fine-tunes layer4 + fc; all earlier layers are frozen.
     """
-    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None)
 
     # Freeze all layers except layer4 and fc
     for name, param in model.named_parameters():
@@ -44,12 +44,12 @@ def _build_resnet50(device: torch.device, num_classes: int = NUM_CLASSES) -> nn.
     return model.to(device)
 
 
-def _build_efficientnet_b3(device: torch.device, num_classes: int = NUM_CLASSES) -> nn.Module:
+def _build_efficientnet_b3(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build EfficientNet-B3 with custom classifier head.
     Fine-tunes the last feature block + classifier; earlier blocks are frozen.
     """
-    model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.IMAGENET1K_V1)
+    model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.IMAGENET1K_V1 if pretrained else None)
 
     # Freeze all feature layers except the last block (features[8])
     for name, param in model.named_parameters():
@@ -70,12 +70,12 @@ def _build_efficientnet_b3(device: torch.device, num_classes: int = NUM_CLASSES)
     return model.to(device)
 
 
-def _build_densenet121(device: torch.device, num_classes: int = NUM_CLASSES) -> nn.Module:
+def _build_densenet121(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build DenseNet121 with custom classifier head.
     Fine-tunes denseblock4 + classifier; earlier blocks are frozen.
     """
-    model = models.densenet121(weights=models.DenseNet121_Weights.IMAGENET1K_V1)
+    model = models.densenet121(weights=models.DenseNet121_Weights.IMAGENET1K_V1 if pretrained else None)
 
     # Freeze all feature layers except denseblock4
     for name, param in model.named_parameters():
@@ -107,13 +107,15 @@ _BUILDERS = {
 }
 
 
-def build_model(model_name: str, device: torch.device) -> nn.Module:
+def build_model(model_name: str, device: torch.device, pretrained: bool = True) -> nn.Module:
     """
     Build the specified model architecture.
 
     Args:
         model_name: One of "ResNet50", "EfficientNet-B3", "DenseNet121".
         device: Target compute device (cpu, cuda, mps).
+        pretrained: Load ImageNet weights. Pass False when a trained
+            checkpoint will be loaded right after (skips the download).
 
     Returns:
         The constructed model moved to the specified device.
@@ -125,7 +127,7 @@ def build_model(model_name: str, device: torch.device) -> nn.Module:
         )
 
     print(f"[INFO] Building {model_name} model with custom classifier head...")
-    model = _BUILDERS[model_name](device)
+    model = _BUILDERS[model_name](device, pretrained=pretrained)
     _print_param_count(model)
     return model
 

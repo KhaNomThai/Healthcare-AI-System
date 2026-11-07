@@ -50,6 +50,9 @@ DATASET_DIR = BASE_DIR / "Dataset"
 # Auto-detect whether ISIC 2019 images are in a nested or flat directory.
 # Some archive extractions produce a double-nested folder; this handles both.
 ISIC_2019_DIR = DATASET_DIR / "ISIC 2019"
+# Also accept the archive files placed directly under Dataset/
+if not ISIC_2019_DIR.exists() and (DATASET_DIR / "ISIC_2019_Training_GroundTruth.csv").exists():
+    ISIC_2019_DIR = DATASET_DIR
 _isic_input_dir = ISIC_2019_DIR / "ISIC_2019_Training_Input"
 if (_isic_input_dir / "ISIC_2019_Training_Input").exists():
     ISIC_2019_IMAGE_DIR = _isic_input_dir / "ISIC_2019_Training_Input"
