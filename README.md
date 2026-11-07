@@ -3,6 +3,8 @@
 
 An AI-driven **8-Class Disease Classification & Two-Level Cancer Screening System** for dermatoscopic skin lesion analysis using the ISIC 2019 dataset, featuring **Multi-Model Benchmark Comparison** across ResNet50, EfficientNet-B3, and DenseNet121.
 
+**[Live Demo](https://kulachart2014-derma-ai.static.hf.space)** (runs entirely in your browser, images never leave your device) · **[Download Trained Models](https://github.com/KhaNomThai/Healthcare-AI-System/releases/latest)**
+
 > [!IMPORTANT]
 > This AI system is designed as an academic and research-oriented clinical decision support tool for preliminary screening only. It is **not** a substitute for professional medical diagnosis, consultation, or histopathological examination by certified dermatologists.
 
@@ -203,6 +205,14 @@ cd "Healthcare AI System"
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+
+#### Download Trained Models
+Model weights are not stored in git. Download them from the
+[latest release](https://github.com/KhaNomThai/Healthcare-AI-System/releases/latest) into the project root:
+```bash
+gh release download --repo KhaNomThai/Healthcare-AI-System --pattern "*.pth"
+```
+Training from scratch instead requires the ISIC 2019 dataset under `Dataset/` (see Section 4).
 
 ### 2. Execution Modes
 
