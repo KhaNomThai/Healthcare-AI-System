@@ -14,8 +14,9 @@ function useGrow(key) {
   return on;
 }
 
-export default function Result({ probs, classes, modelName, groundTruth }) {
+export default function Result({ probs, classes, model, groundTruth }) {
   const grow = useGrow(probs);
+  const missRate = model.metrics?.false_negative_rate; // share of test-set cancers this model called benign
   const cancerProb = probs.reduce((s, p, i) => s + (classes[i].cancer ? p : 0), 0);
   const benignProb = 1 - cancerProb;
   const highRisk = cancerProb >= 0.5;
@@ -39,7 +40,7 @@ export default function Result({ probs, classes, modelName, groundTruth }) {
           <div>
             <div className="eyebrow">Level 1 — Binary Clinical Triage</div>
             <div className="mt-0.5 text-[11.5px] text-slate-500">
-              Evaluated by <strong className="text-slate-900">{modelName}</strong>
+              Evaluated by <strong className="text-slate-900">{model.name}</strong>
             </div>
           </div>
           <span
@@ -47,7 +48,7 @@ export default function Result({ probs, classes, modelName, groundTruth }) {
               highRisk ? "bg-red-700" : "bg-green-700"
             }`}
           >
-            {highRisk ? "HIGH RISK — ELEVATED MALIGNANCY PROBABILITY" : "LOW RISK — PREDOMINANTLY BENIGN PROFILE"}
+            {highRisk ? "HIGH RISK — ELEVATED MALIGNANCY PROBABILITY" : "LOWER ESTIMATED RISK — DOES NOT RULE OUT CANCER"}
           </span>
         </div>
         <div className="grid gap-4 rounded-xl border border-slate-900/5 bg-white/80 p-4 sm:grid-cols-2">
@@ -73,7 +74,7 @@ export default function Result({ probs, classes, modelName, groundTruth }) {
               {topClass.cancer ? "Cancer / Pre-Cancer Group" : "Benign Lesion Group"}
             </span>
             <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[12px] font-bold text-slate-900">
-              Confidence: {pct(probs[top])}
+              Model score: {pct(probs[top])}
             </div>
           </div>
         </div>
@@ -157,20 +158,23 @@ export default function Result({ probs, classes, modelName, groundTruth }) {
         ) : (
           <>
             <p className="text-slate-800">
-              Analysis suggests a benign lesion with low malignancy probability. Periodic self-monitoring is
-              recommended. Consult a physician if changes in size, color, border, or symptoms are observed.
+              The model leans towards a benign lesion, but this does not rule out cancer
+              {missRate != null && <> — on the test set it missed about {pct(missRate)} of cancers</>}. Keep
+              monitoring the lesion, and see a physician if it changes in size, color or border, or if you are
+              concerned.
             </p>
             <p className="mt-1 text-slate-600">
-              ผลการวิเคราะห์บ่งชี้ว่าเป็นรอยโรคที่ไม่ร้ายแรง มีความเสี่ยงต่ำต่อมะเร็ง แนะนำให้ติดตามสังเกตอาการเป็นระยะ
-              หากพบการเปลี่ยนแปลงของขนาด สี ขอบ หรือมีอาการผิดปกติ ควรปรึกษาแพทย์
+              โมเดลประเมินว่าน่าจะเป็นรอยโรคที่ไม่ร้ายแรง แต่ไม่สามารถตัดความเป็นมะเร็งออกได้
+              {missRate != null && <> (ในชุดทดสอบ โมเดลพลาดมะเร็งประมาณ {pct(missRate)})</>} ควรสังเกตรอยโรคต่อไป
+              และปรึกษาแพทย์หากขนาด สี หรือขอบเปลี่ยนแปลง หรือมีข้อกังวล
             </p>
           </>
         )}
       </section>
 
       <p className="text-center text-[10.5px] leading-relaxed text-slate-400">
-        For educational and research purposes only (CPE310). Results are probabilistic estimates and do not
-        constitute a medical diagnosis.
+        For educational and research purposes only (CPE310). Model scores are uncalibrated estimates, not
+        diagnostic certainty, and do not constitute a medical diagnosis.
       </p>
     </div>
   );

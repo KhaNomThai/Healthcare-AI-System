@@ -28,7 +28,7 @@ export default function Screening({ data }) {
         const p = await predict(session, preprocess(img, data.imageSize, data.mean, data.std));
         if (cancelled) return;
         setProbs(p);
-        setResultModel(model.name);
+        setResultModel(model);
         setStatus({ phase: "done" });
       } catch (e) {
         if (!cancelled) setStatus({ phase: "error", message: e.message || String(e) });
@@ -65,7 +65,7 @@ export default function Screening({ data }) {
         ) : busy ? (
           <Progress status={status} model={model} />
         ) : probs ? (
-          <Result probs={probs} classes={data.classes} modelName={resultModel} groundTruth={image?.label} />
+          <Result probs={probs} classes={data.classes} model={resultModel} groundTruth={image?.label} />
         ) : (
           <Placeholder />
         )}
@@ -161,6 +161,13 @@ function ImageInput({ image, onImage, disabled }) {
           </div>
         )}
       </button>
+      <p className="mt-2.5 rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] leading-relaxed text-amber-800">
+        <strong>Dermoscopy images only.</strong> The models were trained on dermatoscope images; ordinary phone
+        photos give unreliable results.
+        <span className="block text-amber-700/90">
+          รองรับเฉพาะภาพจากกล้องส่องผิวหนัง (dermoscopy) ภาพถ่ายจากมือถือทั่วไปให้ผลที่เชื่อถือไม่ได้
+        </span>
+      </p>
       <input
         ref={inputRef}
         type="file"
@@ -216,11 +223,11 @@ function Taxonomy({ classes }) {
           <div className={`mb-1.5 text-[10.5px] font-bold uppercase tracking-wider ${cancer ? "text-red-700" : "text-green-700"}`}>
             {cancer ? "Cancer / Pre-Cancer (High Risk)" : "Benign (Low Risk)"}
           </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          <div className="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
             {group(cancer).map((c) => (
-              <div key={c.code} className="flex items-center gap-2 text-[11.5px] text-slate-700">
+              <div key={c.code} className="flex items-center gap-2 text-[11.5px] leading-snug text-slate-700">
                 <CodePill code={c.code} cancer={cancer} />
-                <span className="truncate">{c.nameEn.replace(/\s*\(.*\)$/, "")}</span>
+                <span>{c.nameEn.replace(/\s*\(.*\)$/, "")}</span>
               </div>
             ))}
           </div>

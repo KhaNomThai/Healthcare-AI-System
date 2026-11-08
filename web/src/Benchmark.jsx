@@ -36,7 +36,7 @@ export default function Benchmark({ data }) {
               <h3 className="text-[15px] font-bold text-slate-900">{m.name}</h3>
               {m.metrics.overall_accuracy === best(METRICS[0]) && (
                 <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                  Best
+                  Best Top-1
                 </span>
               )}
             </div>
@@ -59,6 +59,7 @@ export default function Benchmark({ data }) {
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900">Clinical Metric Comparison</span>
           <span className="ml-2 text-[10.5px] text-slate-500">Best value per row highlighted</span>
+          <span className="mt-0.5 block text-[10.5px] font-medium text-blue-700 sm:hidden">Swipe the table sideways to see all models →</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-[12px]">
@@ -146,8 +147,12 @@ export default function Benchmark({ data }) {
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {models.filter((m) => m.cm).map((m) => (
             <figure key={m.name} className="rounded-xl border border-slate-200 p-2">
-              <img src={m.cm} alt={`${m.name} confusion matrix`} loading="lazy" className="w-full rounded-lg" />
-              <figcaption className="mt-1.5 text-center text-[11.5px] font-semibold text-slate-700">{m.name}</figcaption>
+              <a href={m.cm} target="_blank" rel="noreferrer" title="Open full size">
+                <img src={m.cm} alt={`${m.name} confusion matrix`} loading="lazy" className="w-full rounded-lg" />
+              </a>
+              <figcaption className="mt-1.5 text-center text-[11.5px] font-semibold text-slate-700">
+                {m.name} <span className="font-normal text-slate-400">· click to enlarge</span>
+              </figcaption>
             </figure>
           ))}
         </div>
