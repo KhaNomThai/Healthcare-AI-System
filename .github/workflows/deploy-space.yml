@@ -1,0 +1,46 @@
+name: Deploy web to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "space/README.md", ".github/workflows/deploy-space.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-space
+  cancel-in-progress: true
+
+env:
+  SPACE: kulachart2014/derma-ai
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Test and build
+        working-directory: web
+        run: npm ci && npm test && npm run build
+
+      - name: Install Hugging Face CLI
+        run: pip install -U huggingface_hub
+
+      # Models, data.json, examples/ and cm/ are not in git (made by export_onnx.py and uploaded by hand),
+      # so only the app code is deployed here; those files on the Space are left untouched.
+      - name: Upload app code to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          hf upload "$SPACE" web/dist . --repo-type space \
+            --include "index.html" --include "assets/*" --include "logo.*" \
+            --delete "assets/*" \
+            --commit-message "Deploy ${GITHUB_SHA::7} from GitHub"
+          hf upload "$SPACE" space/README.md README.md --repo-type space \
+            --commit-message "Sync Space README (${GITHUB_SHA::7})"

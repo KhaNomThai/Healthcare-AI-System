@@ -299,3 +299,8 @@ hf repos create <user>/derma-ai --type space --sdk static --public   # first tim
 hf upload <user>/derma-ai web/dist . --type space
 hf upload <user>/derma-ai space/README.md README.md --type space
 ```
+
+After that, pushes to `main` that touch `web/` redeploy the app code automatically
+(`.github/workflows/deploy-space.yml`, needs a `HF_TOKEN` repo secret with write access to the Space).
+Models, `data.json` and sample images are not in git, so after re-running `export_onnx.py` upload them by hand
+with the command above.
