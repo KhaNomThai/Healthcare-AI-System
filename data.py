@@ -36,6 +36,7 @@ from config import (
     IMAGE_SIZE,
     BATCH_SIZE,
     NUM_WORKERS,
+    NUM_CLASSES,
     PIN_MEMORY,
     RANDOM_SEED,
     IMAGENET_MEAN,
@@ -124,8 +125,8 @@ def load_and_prepare_data() -> pd.DataFrame:
     gt_df = gt_df.merge(meta, on="image", how="left")
     gt_df["group"] = gt_df["lesion_id"].fillna(gt_df["image"])
 
-    # Convert one-hot to single diagnosis label
-    gt_df["dx"] = gt_df[ISIC_2019_LABEL_COLS].idxmax(axis=1)
+    # Convert one-hot to single diagnosis label (UNK included so UNK rows are dropped, not read as MEL)
+    gt_df["dx"] = gt_df[ISIC_2019_LABEL_COLS + ["UNK"]].idxmax(axis=1)
 
     # Drop UNK rows (should be 0 in training set, but defensive)
     unk_mask = gt_df["dx"] == "UNK"
@@ -235,13 +236,12 @@ def split_data(
 
 def compute_class_weights_tensor(labels: np.ndarray, device: torch.device) -> torch.Tensor:
     """Compute balanced class weights for handling class imbalance."""
-    unique_classes = np.unique(labels)
-    weights = compute_class_weight("balanced", classes=unique_classes, y=labels)
+    # All classes listed explicitly so weight i always belongs to class i (sklearn raises if one is missing)
+    weights = compute_class_weight("balanced", classes=np.arange(NUM_CLASSES), y=labels)
     weight_tensor = torch.tensor(weights, dtype=torch.float32).to(device)
-    print(f"[INFO] Class weights computed for {len(unique_classes)} classes")
+    print(f"[INFO] Class weights computed for {NUM_CLASSES} classes")
     for idx, code in enumerate(CLASS_CODES):
-        if idx < len(weights):
-            print(f"  [{idx}] {code:5s}: {weights[idx]:.4f}")
+        print(f"  [{idx}] {code:5s}: {weights[idx]:.4f}")
     return weight_tensor
 
 
@@ -286,6 +286,7 @@ def create_dataloaders(
         train_dataset,
         batch_size=BATCH_SIZE,
         shuffle=True,
+        generator=torch.Generator().manual_seed(RANDOM_SEED),  # seeds shuffle order and worker augmentations
         num_workers=NUM_WORKERS,
         pin_memory=PIN_MEMORY,
     )

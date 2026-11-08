@@ -140,9 +140,14 @@ The **ISIC 2019** dataset (*International Skin Imaging Collaboration 2019 Challe
   P(Benign) = Σ P(NV, BKL, VASC, DF)         P(MEL), P(BCC), P(SCC), P(AK)
                                            Benign Sub-Types:
   Decision Logic:                            P(NV), P(BKL), P(VASC), P(DF)
-  - HIGH RISK (P(Cancer) ≥ 0.50)
-  - LOW RISK  (P(Cancer) < 0.50)         Differential Clinical Ranking (Top 1-3)
+  - HIGH RISK (P(Cancer) ≥ threshold)
+  - LOW RISK  (P(Cancer) < threshold)    Differential Clinical Ranking (Top 1-3)
 ```
+
+The threshold is chosen per model on the **validation** set as the highest value that still flags at least
+90% of cancers (`TARGET_SENSITIVITY` in `config.py`), capped at 0.50. It is saved as `cancer_threshold` in
+`metrics_*.json` and used by both the test-set report and the web app. Models exported before this change fall
+back to 0.50.
 
 ---
 
@@ -231,7 +236,9 @@ See [Section 13](#13-browser-web-app-static-deployment): `python export_onnx.py`
 ```bash
 python main.py
 ```
-Sequentially trains ResNet50, EfficientNet-B3, and DenseNet121, evaluates each model on the test split, and generates comparison tables.
+Sequentially trains ResNet50, EfficientNet-B3, and DenseNet121, picks each model's cancer threshold on the
+validation split, evaluates on the test split, and generates comparison tables.
+`python test_evaluate.py` self-checks the threshold picker.
 
 #### Train a Specific Architecture
 ```bash

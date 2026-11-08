@@ -6,6 +6,13 @@ const sessions = new Map(); // model file -> Promise<InferenceSession>
 
 // Download with progress, then build an inference session (cached per model).
 export function loadModel(file, onProgress) {
+  // Free other models first: three sessions at once can exhaust memory on phones.
+  // Switching back re-reads the file from the browser's HTTP cache.
+  for (const [other, p] of sessions) {
+    if (other === file) continue;
+    sessions.delete(other);
+    p.then((s) => s.release(), () => {});
+  }
   if (!sessions.has(file)) {
     const p = (async () => {
       const res = await fetch(file);
@@ -39,6 +46,8 @@ export function loadModel(file, onProgress) {
 export function preprocess(img, size, mean, std) {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
+  // iOS Safari silently returns a blank canvas above ~16.7 MP, which would give a garbage prediction.
+  if (W * H > 16_777_216) throw new Error(`Image too large (${W}×${H}). Please use an image under 16 megapixels.`);
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;

@@ -70,6 +70,10 @@ def train_one_epoch(
 ) -> Tuple[float, float]:
     """Train model for one epoch. Returns (avg_loss, macro_f1)."""
     model.train()
+    # requires_grad=False does not stop BatchNorm running stats from updating; keep frozen layers truly frozen.
+    for m in model.modules():
+        if isinstance(m, nn.modules.batchnorm._BatchNorm) and not any(p.requires_grad for p in m.parameters()):
+            m.eval()
     running_loss = 0.0
     all_preds = []
     all_labels = []
@@ -169,7 +173,7 @@ def train_model(
     )
     early_stopping = EarlyStopping(patience=EARLY_STOPPING_PATIENCE)
 
-    best_val_f1 = 0.0
+    best_val_f1 = -1.0  # so epoch 1 always saves a checkpoint, even at F1 = 0
     start_time = time.time()
 
     for epoch in range(1, NUM_EPOCHS + 1):

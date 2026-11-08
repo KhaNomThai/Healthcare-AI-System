@@ -60,7 +60,13 @@ export default function Screening({ data }) {
       <div className="stagger space-y-4 lg:col-span-5">
         <ModelPicker models={data.models} value={modelIdx} onChange={setModelIdx} disabled={busy} hasImage={!!image} />
         <ImageInput image={image} onImage={chooseImage} disabled={busy} />
-        <Examples examples={data.examples} active={image?.url} onPick={chooseImage} disabled={busy} />
+        <Examples
+          examples={data.examples}
+          legacy={data.models.some((m) => m.metrics && !m.metrics.split)}
+          active={image?.url}
+          onPick={chooseImage}
+          disabled={busy}
+        />
         <Taxonomy classes={data.classes} />
       </div>
 
@@ -195,12 +201,14 @@ function ImageInput({ image, onImage, disabled }) {
   );
 }
 
-function Examples({ examples, active, onPick, disabled }) {
+function Examples({ examples, legacy, active, onPick, disabled }) {
   if (!examples.length) return null;
   return (
     <section className="card p-4">
       <div className="eyebrow mb-1">Try a Sample Image</div>
-      <p className="mb-3 text-[12.5px] text-slate-500">Held-out ISIC 2019 test images. Badge = ground-truth label.</p>
+      <p className="mb-3 text-[12.5px] text-slate-500">
+        {legacy ? "ISIC 2019 images (see the note above)." : "Held-out ISIC 2019 test images."} Badge = ground-truth label.
+      </p>
       <div className="grid grid-cols-4 gap-2">
         {examples.map((ex) => (
           <button

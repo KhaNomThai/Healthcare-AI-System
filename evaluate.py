@@ -9,6 +9,7 @@ comparison tables.
 """
 
 import json
+import math
 from pathlib import Path
 from typing import Tuple, Dict, Optional
 
@@ -34,6 +35,7 @@ from config import (
     CLASS_NAMES_EN,
     NUM_CLASSES,
     CANCER_INDICES,
+    TARGET_SENSITIVITY,
     MODEL_REGISTRY,
     MODEL_NAMES,
 )
@@ -48,14 +50,14 @@ def evaluate_on_test_set(
     test_loader: DataLoader,
     device: torch.device,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Run inference on test set. Returns (all_labels, all_preds, all_probs)."""
+    """Run inference on any loader (val or test). Returns (all_labels, all_preds, all_probs)."""
     model.eval()
     all_labels = []
     all_preds = []
     all_probs = []
 
     with torch.no_grad():
-        for images, labels in tqdm(test_loader, desc="  Evaluating on test set"):
+        for images, labels in tqdm(test_loader, desc="  Evaluating"):
             images = images.to(device, non_blocking=True)
             outputs = model(images)
             probs = torch.softmax(outputs, dim=1)
@@ -68,12 +70,22 @@ def evaluate_on_test_set(
     return np.array(all_labels), np.array(all_preds), np.array(all_probs)
 
 
-def _binary_screening(labels: np.ndarray, probs: np.ndarray):
-    """Cancer vs benign, same rule as the web UI: P(cancer group) >= 0.5.
+def _binary_screening(labels: np.ndarray, probs: np.ndarray, threshold: float = 0.5):
+    """Cancer vs benign, same rule as the web UI: P(cancer group) >= threshold.
     Returns (binary_labels, binary_preds, cancer_prob)."""
     binary_labels = np.isin(labels, list(CANCER_INDICES)).astype(int)
     cancer_prob = probs[:, sorted(CANCER_INDICES)].sum(axis=1)
-    return binary_labels, (cancer_prob >= 0.5).astype(int), cancer_prob
+    return binary_labels, (cancer_prob >= threshold).astype(int), cancer_prob
+
+
+def pick_cancer_threshold(labels: np.ndarray, probs: np.ndarray, target: float = TARGET_SENSITIVITY) -> float:
+    """Highest P(cancer) threshold that still flags >= `target` of the cancers in (labels, probs).
+    Pick it on the validation set, never the test set. Never above 0.5 (the plain majority rule)."""
+    binary_labels, _, cancer_prob = _binary_screening(labels, probs)
+    pos = np.sort(cancer_prob[binary_labels == 1])
+    k = int(math.floor((1 - target) * len(pos)))  # cancers allowed below the threshold
+    # Round down to 4 decimals so the stored value never loses sensitivity.
+    return min(math.floor(float(pos[k]) * 1e4) / 1e4, 0.5)
 
 
 # =============================================================================
@@ -85,6 +97,7 @@ def print_evaluation_report(
     labels: np.ndarray,
     preds: np.ndarray,
     probs: np.ndarray,
+    threshold: float = 0.5,
 ) -> None:
     """Print comprehensive evaluation report with per-class and binary grouped metrics."""
     print()
@@ -112,10 +125,10 @@ def print_evaluation_report(
     # Binary grouped metrics (cancer screening)
     print()
     print("-" * 80)
-    print("[INFO] Binary Cancer Screening Metrics (Grouped)")
+    print(f"[INFO] Binary Cancer Screening Metrics (Grouped, P(cancer) >= {threshold:.4f})")
     print("-" * 80)
 
-    binary_labels, binary_preds, _ = _binary_screening(labels, probs)
+    binary_labels, binary_preds, _ = _binary_screening(labels, probs, threshold)
 
     cancer_sensitivity = recall_score(binary_labels, binary_preds, pos_label=1, zero_division=0)
     cancer_specificity = recall_score(binary_labels, binary_preds, pos_label=0, zero_division=0)
@@ -139,15 +152,15 @@ def print_evaluation_report(
 
     # Safety assessment
     print()
-    if cancer_sensitivity >= 0.90:
-        print("[PASSED] Cancer sensitivity >= 90% target")
+    if cancer_sensitivity >= TARGET_SENSITIVITY:
+        print(f"[PASSED] Cancer sensitivity >= {TARGET_SENSITIVITY:.0%} target")
     else:
-        print(f"[BELOW TARGET] Cancer sensitivity {cancer_sensitivity:.1%} is below 90% target")
+        print(f"[BELOW TARGET] Cancer sensitivity {cancer_sensitivity:.1%} is below {TARGET_SENSITIVITY:.0%} target")
 
-    if false_negative_rate <= 0.10:
-        print("[PASSED] False negative rate <= 10% target")
+    if false_negative_rate <= 1 - TARGET_SENSITIVITY:
+        print(f"[PASSED] False negative rate <= {1 - TARGET_SENSITIVITY:.0%} target")
     else:
-        print(f"[BELOW TARGET] False negative rate {false_negative_rate:.1%} exceeds 10% threshold")
+        print(f"[BELOW TARGET] False negative rate {false_negative_rate:.1%} exceeds {1 - TARGET_SENSITIVITY:.0%} threshold")
 
     print()
 
@@ -220,6 +233,7 @@ def save_model_metrics(
     labels: np.ndarray,
     preds: np.ndarray,
     probs: np.ndarray,
+    threshold: float = 0.5,
     training_time: float = 0.0,
     total_params: int = 0,
     trainable_params: int = 0,
@@ -238,7 +252,7 @@ def save_model_metrics(
     top3_correct = np.array([lbl in top3_preds[i] for i, lbl in enumerate(labels)])
     top3_acc = np.mean(top3_correct)
 
-    binary_labels, binary_preds, cancer_prob = _binary_screening(labels, probs)
+    binary_labels, binary_preds, cancer_prob = _binary_screening(labels, probs, threshold)
 
     binary_acc = accuracy_score(binary_labels, binary_preds)
     cancer_sensitivity = recall_score(binary_labels, binary_preds, pos_label=1, zero_division=0)
@@ -256,6 +270,8 @@ def save_model_metrics(
 
     metrics = {
         "model_name": model_name,
+        "split": "lesion-grouped",  # the web app warns about metrics without this (old leaky split)
+        "cancer_threshold": threshold,
         "overall_accuracy": round(float(overall_acc), 4),
         "top2_accuracy": round(float(top2_acc), 4),
         "top3_accuracy": round(float(top3_acc), 4),
@@ -327,6 +343,7 @@ def print_comparison_table() -> None:
         ("Cancer Sensitivity", "cancer_sensitivity", True),
         ("Cancer Specificity", "cancer_specificity", True),
         ("False Negative Rate", "false_negative_rate", False),
+        ("Cancer Threshold (from val)", "cancer_threshold", None),
         ("Training Duration", "training_time_seconds", None),
         ("Total Parameters", "total_params", None),
     ]

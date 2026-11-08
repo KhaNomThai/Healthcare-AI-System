@@ -13,7 +13,6 @@ across the entire pipeline.
 # =============================================================================
 
 import random
-import warnings
 import tempfile
 import os
 from pathlib import Path
@@ -21,10 +20,6 @@ from typing import Dict, List
 
 import numpy as np
 import torch
-
-# Suppress non-critical warnings
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Matplotlib: configure cache and use non-interactive backend (macOS compatibility)
 _mpl_dir = str(Path(tempfile.gettempdir()) / "mpl_cache")
@@ -68,8 +63,9 @@ WEIGHT_DECAY = 1e-2                # L2 regularization coefficient
 EARLY_STOPPING_PATIENCE = 3        # Epochs to wait before early stopping
 NUM_CLASSES = 8                    # Total disease classes
 NUM_WORKERS = 2                    # DataLoader workers (limited for macOS fork safety)
-PIN_MEMORY = True                  # Pin memory for faster CPU-to-GPU transfer
+PIN_MEMORY = torch.cuda.is_available()  # Pinned memory only helps CUDA (unsupported on MPS)
 RANDOM_SEED = 42                   # Reproducibility seed
+TARGET_SENSITIVITY = 0.90          # Cancer screening target; sets the cancer threshold on validation
 
 # ImageNet normalization statistics
 IMAGENET_MEAN = [0.485, 0.456, 0.406]

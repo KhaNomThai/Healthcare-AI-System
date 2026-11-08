@@ -4,7 +4,9 @@ export default function Result({ probs, classes, model, groundTruth }) {
   const grow = useGrow(probs);
   const missRate = model.metrics?.false_negative_rate; // share of test-set cancers this model called benign
   const cancerProb = probs.reduce((s, p, i) => s + (classes[i].cancer ? p : 0), 0);
-  const highRisk = cancerProb >= 0.5;
+  // Tuned on validation for the target sensitivity (evaluate.py); 0.5 for models exported before that.
+  const threshold = model.metrics?.cancer_threshold ?? 0.5;
+  const highRisk = cancerProb >= threshold;
   const top = probs.indexOf(Math.max(...probs));
   const topClass = classes[top];
   const rows = (cancer) =>
@@ -38,7 +40,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
             <p className="text-[14px] font-semibold text-slate-900">
               {highRisk ? "Elevated probability of a malignant or pre-cancerous lesion." : "Leans benign — this does not rule out cancer."}
             </p>
-            <SplitBar cancer={cancerProb} grow={grow} />
+            <SplitBar cancer={cancerProb} grow={grow} threshold={threshold} />
           </div>
         </div>
       </section>
@@ -64,7 +66,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
             </div>
           </div>
         </div>
-        {topClass.cancer !== highRisk && <Mismatch topClass={topClass} cancerProb={cancerProb} />}
+        {topClass.cancer !== highRisk && <Mismatch topClass={topClass} cancerProb={cancerProb} threshold={threshold} />}
         <div className="mt-3 border-t border-slate-100 pt-3 text-[13px] leading-relaxed">
           <p className="text-slate-600">{topClass.descEn}</p>
           <p lang="th" className="mt-1 text-slate-500">{topClass.descTh}</p>
@@ -168,17 +170,17 @@ export default function Result({ probs, classes, model, groundTruth }) {
 }
 
 // Level 1 sums all cancer sub-types, Top-1 is the single highest class, so they can disagree.
-function Mismatch({ topClass, cancerProb }) {
+function Mismatch({ topClass, cancerProb, threshold }) {
   return (
     <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] leading-relaxed text-amber-900">
       {topClass.cancer ? (
         <>
           <p>
             <strong>Note:</strong> the single most likely class is a cancer type, although all cancer sub-types together
-            score only {pct(cancerProb)}. Treat this lesion as suspicious and have it checked.
+            score only {pct(cancerProb)}, below the {pct(threshold)} threshold. Treat this lesion as suspicious and have it checked.
           </p>
           <p lang="th" className="mt-0.5 text-amber-800">
-            คลาสที่มีคะแนนสูงสุดเป็นกลุ่มมะเร็ง แม้คะแนนรวมกลุ่มมะเร็งจะต่ำกว่า 50% ควรถือว่าน่าสงสัยและปรึกษาแพทย์
+            คลาสที่มีคะแนนสูงสุดเป็นกลุ่มมะเร็ง แม้คะแนนรวมกลุ่มมะเร็งจะต่ำกว่าเกณฑ์ {pct(threshold)} ควรถือว่าน่าสงสัยและปรึกษาแพทย์
           </p>
         </>
       ) : (
@@ -226,7 +228,7 @@ function Gauge({ value, grow, highRisk }) {
 }
 
 // One bar split into cancer (red) vs benign (green); the two shares always sum to 100%.
-function SplitBar({ cancer, grow }) {
+function SplitBar({ cancer, grow, threshold }) {
   const w = grow ? cancer : 0.5;
   return (
     <div className="mt-3">
@@ -238,10 +240,18 @@ function SplitBar({ cancer, grow }) {
           Benign <span className="tabular-nums">{pct(1 - cancer)}</span>
         </span>
       </div>
-      <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
-        <div className="rounded-l-full bg-red-600 transition-[width] duration-700 ease-out" style={{ width: pct(w) }} />
-        <div className="flex-1 rounded-r-full bg-green-600" />
+      <div className="relative">
+        <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+          <div className="rounded-l-full bg-red-600 transition-[width] duration-700 ease-out" style={{ width: pct(w) }} />
+          <div className="flex-1 rounded-r-full bg-green-600" />
+        </div>
+        {/* Referral threshold marker */}
+        <div className="absolute -inset-y-1 w-0.5 rounded bg-slate-900" style={{ left: pct(threshold) }} aria-hidden="true" />
       </div>
+      <p className="mt-1.5 text-[12px] text-slate-500">
+        Marker = referral threshold: <strong className="text-slate-700">{pct(threshold)}</strong> cancer score or above is
+        flagged as higher risk.
+      </p>
     </div>
   );
 }

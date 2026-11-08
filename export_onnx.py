@@ -53,8 +53,10 @@ def export_one(name: str) -> dict:
 
     # Verify ONNX == PyTorch on the sample images
     sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    samples = sorted(EXAMPLES.glob("*.jpg"))
+    assert samples, f"No sample images in {EXAMPLES}: cannot verify the ONNX export"
     max_diff = 0.0
-    for img_path in sorted(EXAMPLES.glob("*.jpg")):
+    for img_path in samples:
         x = val_test_transform(Image.open(img_path).convert("RGB")).unsqueeze(0)
         with torch.no_grad():
             ref = model(x).numpy()

@@ -36,6 +36,7 @@ export default function App() {
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-6 sm:px-6">
       <Header classCount={data?.classes.length} />
       <Notice />
+      {data?.models.some((m) => m.metrics && !m.metrics.split) && <LegacyNotice />}
 
       <nav className="relative mb-5 grid w-full grid-cols-2 rounded-xl border border-slate-200 bg-slate-200/70 p-1 sm:inline-grid sm:w-auto" role="tablist" aria-label="Sections" onKeyDown={onTabKey}>
         {/* Sliding pill behind the active tab */}
@@ -144,6 +145,23 @@ function Notice() {
         <strong className="text-slate-900">Clinical Notice:</strong> An AI-assisted screening prototype built for
         academic research (CPE310 Healthcare AI System). Outputs are probabilistic estimates and must not replace
         professional dermatological consultation or biopsy. Images are processed on your device and never uploaded.
+      </p>
+    </div>
+  );
+}
+
+// Shown until the models are retrained: metrics without `split` come from the old image-level split.
+function LegacyNotice() {
+  return (
+    <div role="note" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13.5px] leading-relaxed text-amber-900">
+      <p>
+        <strong>Preliminary models:</strong> these models were trained before a data-split fix, so images of the same
+        lesion appeared in both training and test data. The reported metrics are optimistic, and most sample images
+        were seen during training. Retrained models are coming.
+      </p>
+      <p lang="th" className="mt-1 text-amber-800">
+        โมเดลชุดนี้เทรนก่อนแก้การแบ่งข้อมูล รอยโรคเดียวกันจึงอยู่ทั้งในชุดเทรนและชุดทดสอบ ตัวเลขประสิทธิภาพจึงสูงเกินจริง
+        และภาพตัวอย่างส่วนใหญ่โมเดลเคยเห็นตอนเทรนแล้ว กำลังเทรนโมเดลใหม่
       </p>
     </div>
   );

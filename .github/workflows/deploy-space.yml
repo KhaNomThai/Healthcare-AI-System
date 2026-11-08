@@ -30,7 +30,7 @@ jobs:
         run: npm ci && npm test && npm run build
 
       - name: Install Hugging Face CLI
-        run: pip install -U huggingface_hub
+        run: pip install huggingface_hub==2.4.0  # pinned: a CLI change must not silently break deploys
 
       # Models, data.json, examples/ and cm/ are not in git (made by export_onnx.py and uploaded by hand),
       # so only the app code is deployed here; those files on the Space are left untouched.

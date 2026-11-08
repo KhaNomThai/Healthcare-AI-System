@@ -24,6 +24,7 @@ from config import (
     print_banner,
     MODEL_REGISTRY,
     MODEL_NAMES,
+    TARGET_SENSITIVITY,
 )
 from data import (
     load_and_prepare_data,
@@ -39,6 +40,7 @@ from evaluate import (
     plot_confusion_matrix,
     save_model_metrics,
     print_comparison_table,
+    pick_cancer_threshold,
 )
 
 
@@ -115,16 +117,22 @@ def main():
                 if metrics_file.exists() else 0.0
             )
 
+        # Cancer threshold is tuned on validation so the test set stays unseen
+        val_labels, _, val_probs = evaluate_on_test_set(model, val_loader, device)
+        threshold = pick_cancer_threshold(val_labels, val_probs)
+        print(f"[INFO] Cancer threshold for >= {TARGET_SENSITIVITY:.0%} validation sensitivity: {threshold:.4f}")
+
         # Evaluate on test set
         print()
         print("=" * 80)
         print(f"  TEST SET EVALUATION: {model_name}")
         print("=" * 80)
         labels, preds, probs = evaluate_on_test_set(model, test_loader, device)
-        print_evaluation_report(model_name, labels, preds, probs)
+        print_evaluation_report(model_name, labels, preds, probs, threshold)
         plot_confusion_matrix(model_name, labels, preds)
         save_model_metrics(
             model_name, labels, preds, probs,
+            threshold=threshold,
             training_time=train_time,
             total_params=total_params,
             trainable_params=trainable_params,
