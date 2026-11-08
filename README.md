@@ -23,7 +23,8 @@ An AI-driven **8-Class Disease Classification & Two-Level Cancer Screening Syste
 - [9. Technology Stack & Dependencies](#9-technology-stack--dependencies)
 - [10. Installation & Usage](#10-installation--usage)
 - [11. Platform & Environment Configuration](#11-platform--environment-configuration)
-- [12. Gradio Clinical Web Interface](#12-gradio-clinical-web-interface)
+- [12. Web Interface](#12-web-interface)
+- [13. Browser Web App (Static Deployment)](#13-browser-web-app-static-deployment)
 
 ---
 
@@ -50,7 +51,7 @@ Developed as part of the **CPE310 -- Healthcare AI System** course.
 | **8 Disease Classes** | Full taxonomy covering both common benign lesions and aggressive carcinomas |
 | **Multi-Model Support** | Standardized training and benchmark across ResNet50, EfficientNet-B3, and DenseNet121 |
 | **Two-Tab Clinical UI** | Dedicated tabs for patient inference (Clinical Screening) and model analytics (Benchmark) |
-| **Hot Model Switching** | Switch between trained models live in the web interface without restarting the server |
+| **Hot Model Switching** | Switch between trained models live in the web interface |
 | **Two-Level Triage** | Binary screening decision accompanied by detailed sub-type differential probability |
 | **Differential Diagnosis Metrics** | Reports Top-1, Top-2, Top-3, and AUC-ROC reflecting clinical workflow reality |
 | **Apple Silicon GPU Acceleration** | Full native acceleration via PyTorch MPS (Metal Performance Shaders) |
@@ -68,8 +69,10 @@ Healthcare AI System/
 ├── models.py                     # Model architectures (ResNet50, EfficientNet-B3, DenseNet121)
 ├── train.py                      # Training loop, early stopping, LR scheduling
 ├── evaluate.py                   # Evaluation metrics, confusion matrix, comparison table
-├── ui.py                         # Gradio clinical web interface with two-tab layout
-├── main.py                       # CLI entry point (train, evaluate, demo)
+├── main.py                       # CLI entry point (train, evaluate)
+├── export_onnx.py                # Export checkpoints to ONNX + assets for web/
+├── web/                          # React web app (in-browser ONNX inference)
+├── space/                        # Hugging Face Space README
 │
 ├── model_resnet50.pth            # Trained ResNet50 checkpoint (98.6 MB)
 ├── model_efficientnet_b3.pth     # Trained EfficientNet-B3 checkpoint (46.5 MB)
@@ -83,9 +86,8 @@ Healthcare AI System/
 ├── cm_efficientnet_b3.png        # Confusion matrix plot for EfficientNet-B3
 ├── cm_densenet121.png            # Confusion matrix plot for DenseNet121
 │
-├── Dataset/                      # ISIC 2019 and HAM10000 image datasets (ignored by git)
-│   ├── ISIC 2019/                # 25,331 training images & metadata
-│   └── HAM10000/                 # HAM10000 subset
+├── Dataset/                      # ISIC 2019 dataset (ignored by git)
+│   └── ISIC 2019/                # 25,331 training images, ground truth & metadata CSV (lesion_id)
 │
 ├── ABCDE Rule.pdf                # Clinical reference for dermatological screening
 ├── requirements.txt              # Project dependencies
@@ -101,7 +103,7 @@ The **ISIC 2019** dataset (*International Skin Imaging Collaboration 2019 Challe
 
 - **Total Sample Count:** 25,331 dermoscopic images
 - **Dataset Composition:** Incorporates the full HAM10000 collection (10,015 images) plus 15,316 independent cases, including the high-risk SCC category.
-- **Partitioning:** Stratified split across disease labels into 70% Training (17,731 images), 15% Validation (3,800 images), and 15% Unseen Test Set (3,800 images).
+- **Partitioning:** Split by lesion (`lesion_id` from `ISIC_2019_Training_Metadata.csv`) and stratified by class with `StratifiedGroupKFold`: about 71% Training (18,093 images), 14% Validation (3,619) and 14% Unseen Test (3,619). All images of one lesion stay in one split, so the test set never contains a lesion seen in training.
 
 ---
 
@@ -162,21 +164,26 @@ Linear(in_features, 512) -> ReLU -> BatchNorm1d(512) -> Dropout(0.3) -> Linear(5
 
 ## 8. Empirical Benchmark & Validation Results
 
-The following table reports **100% authentic, verified empirical metrics** computed on the unseen test partition (3,800 images, ISIC 2019) using PyTorch on Apple Silicon MPS:
+Values below are copied from `metrics_*.json` (also shown in the web app's Model Performance tab).
 
-| Performance Metric | ResNet50 (Primary) | DenseNet121 | EfficientNet-B3 | Clinical Benchmark Target |
+> [!WARNING]
+> These numbers were measured with the **old image-level split**, where 2,333 of the 3,800 test images
+> showed a lesion that also appeared in training. They are optimistic. Retrain with the current
+> lesion-grouped split (`python main.py`) and update this table from the new `metrics_*.json`.
+
+| Performance Metric | ResNet50 | DenseNet121 | EfficientNet-B3 | Clinical Benchmark Target |
 |---|:---:|:---:|:---:|:---:|
-| **Top-2 Differential Diagnosis** | **89.61% (Best)** | 87.58% | 78.42% | Primary Clinical Target (≥ 85%) |
-| **Top-3 Differential Diagnosis** | **95.21% (Best)** | 94.45% | 88.42% | Secondary Triage Target (≥ 90%) |
-| **Cancer Screening AUC-ROC** | **0.9116 (Best)** | 0.9004 | 0.8703 | Diagnostic Gold Standard (≥ 0.90) |
-| **Binary Malignancy Screening** | **83.16% (Best)** | 81.89% | 79.32% | Malignant vs Benign Triage |
-| **Exact 8-Class Match (Top-1)** | **71.63% (Best)** | 69.29% | 61.08% | Single Fine-Grained Label Match |
-| **Macro F1-Score** | **58.69% (Best)** | 55.54% | 42.85% | Cross-Class Balanced Harmonic Mean |
-| **Weighted F1-Score** | **72.65% (Best)** | 70.66% | 63.51% | Frequency-Weighted F1 |
-| **Cancer Sensitivity (Recall)** | 81.37% | **82.01% (Best)** | 78.09% | Malignancy Detection Rate |
-| **Cancer Specificity (Benign)** | **84.20% (Best)** | 81.83% | 80.03% | Non-Cancer Confirmation Rate |
-| **False Negative Rate (FNR)** | 18.63% | **17.99% (Best)** | 21.91% | Critical Missed Malignancy Rate |
-| **Training Duration** | 86.4 min | 86.2 min | 85.6 min | Execution across 15 Epochs |
+| **Top-2 Differential Diagnosis** | **91.50% (Best)** | 85.21% | 78.39% | Primary Clinical Target (≥ 85%) |
+| **Top-3 Differential Diagnosis** | **96.50% (Best)** | 92.55% | 88.32% | Secondary Triage Target (≥ 90%) |
+| **Cancer Screening AUC-ROC** | **0.9245 (Best)** | 0.8934 | 0.8658 | Diagnostic Gold Standard (≥ 0.90) |
+| **Binary Malignancy Screening** | **85.37% (Best)** | 81.39% | 79.53% | Malignant vs Benign Triage |
+| **Exact 8-Class Match (Top-1)** | **75.66% (Best)** | 67.63% | 59.03% | Single Fine-Grained Label Match |
+| **Macro F1-Score** | **64.08% (Best)** | 53.07% | 42.80% | Cross-Class Balanced Harmonic Mean |
+| **Weighted F1-Score** | **75.67% (Best)** | 68.79% | 62.20% | Frequency-Weighted F1 |
+| **Cancer Sensitivity (Recall)** | **79.01% (Best)** | 77.94% | 73.59% | Malignancy Detection Rate |
+| **Cancer Specificity (Benign)** | **89.08% (Best)** | 83.41% | 82.99% | Non-Cancer Confirmation Rate |
+| **False Negative Rate (FNR)** | **20.99% (Best)** | 22.06% | 26.41% | Critical Missed Malignancy Rate |
+| **Training Duration** | 109.3 min | 58.0 min | 68.7 min | Wall-clock training time |
 | **Total Model Parameters** | 24.6M | 7.5M | 11.5M | Model Footprint |
 
 ---
@@ -187,8 +194,9 @@ The following table reports **100% authentic, verified empirical metrics** compu
 - **Deep Learning:** PyTorch & Torchvision (MPS Apple Silicon GPU Accelerated)
 - **Machine Learning & Evaluation:** Scikit-learn, NumPy, Pandas
 - **Image Processing:** Pillow (PIL)
-- **Visualization:** Matplotlib (Agg headless backend), Seaborn
-- **User Interface:** Gradio 4.0+
+- **Visualization:** Matplotlib (Agg headless backend)
+- **Web App:** React, Vite, Tailwind CSS, ONNX Runtime Web (`onnx` / `onnxruntime` for export)
+- **User Interface:** React + Vite + Tailwind, ONNX Runtime Web (see Section 13)
 
 Install dependencies:
 ```bash
@@ -217,16 +225,13 @@ Training from scratch instead requires the ISIC 2019 dataset under `Dataset/` (s
 ### 2. Execution Modes
 
 #### Launch Web Demo (Recommended)
-```bash
-python main.py --demo
-```
-Starts the Gradio clinical interface at `http://127.0.0.1:7860`.
+See [Section 13](#13-browser-web-app-static-deployment): `python export_onnx.py`, then `cd web && npm install && npm run dev`.
 
 #### Full Multi-Model Training & Benchmark
 ```bash
 python main.py
 ```
-Sequentially trains ResNet50, EfficientNet-B3, and DenseNet121, evaluates each model on the test split, generates comparison tables, and launches the web interface.
+Sequentially trains ResNet50, EfficientNet-B3, and DenseNet121, evaluates each model on the test split, and generates comparison tables.
 
 #### Train a Specific Architecture
 ```bash
@@ -239,38 +244,34 @@ python main.py --model EfficientNet-B3
 ```bash
 python main.py --skip-train
 ```
-Loads existing model checkpoints, executes test evaluation, updates metrics, and launches the web interface.
+Loads existing model checkpoints, executes test evaluation, and updates metrics. Models without a checkpoint are skipped.
 
 ---
 
 ## 11. Platform & Environment Configuration
 
 - **macOS Apple Silicon:** Automatic selection of `torch.device("mps")`.
-- **SSL Certificate Handling:** Configured in `config.py` to prevent torchvision weight download errors on macOS.
-- **DataLoader Configuration:** `num_workers=2` during training; optimized `num_workers=0` for evaluation to eliminate IPC pipe overhead.
+- **SSL Certificates (macOS):** If downloading pretrained weights fails with a certificate error, run `Install Certificates.command` from your Python install folder once. Certificate checks stay on.
+- **DataLoader Configuration:** `num_workers=2` for all loaders (limited for macOS fork safety).
 - **Headless Visualization:** `MPLCONFIGDIR` set to temporary storage with `matplotlib.use("Agg")` to prevent macOS permission locks.
 
 ---
 
-## 12. Gradio Clinical Web Interface
+## 12. Web Interface
 
-The web interface is structured into two dedicated clinical tabs:
+The web app (`web/`) has two tabs:
 
-### Tab 1: Clinical Screening (Inference Workspace)
-- **Clean Model Selector:** Dropdown menu displaying clean model names without clutter.
-- **Interactive Image Ingestion:** Drag-and-drop or clipboard paste with immediate analysis.
-- **Two-Level Risk Result:**
-  - High/Low risk visual banner with active model citation.
-  - Overall cancer vs benign comparative bars.
-  - Primary diagnosis in English and Thai.
-  - Sub-type probability tables for both Cancer and Benign groups.
-  - Clinical management recommendations and legal disclaimer.
+### Tab 1: Clinical Screening
+- **Model Selector:** Cards for ResNet50 / EfficientNet-B3 / DenseNet121 with Top-1 accuracy and download size.
+- **Image Input:** Click or drag-and-drop upload, plus 8 sample images from the held-out test set (with ground-truth badge).
+- **Two-Level Result:** High/Low risk banner, cancer vs benign bars, Top-1 diagnosis in English and Thai,
+  sub-type probabilities for both groups, and a triage recommendation with disclaimer.
 
-### Tab 2: Model Performance & Accuracy (Analytical Dashboard)
-- **Clinical Summary Cards:** High-contrast cards highlighting **Top-2 Differential Diagnosis (89.61%)** as the primary headline statistic alongside Top-3 (95.21%) and Exact 8-Class (71.63%) values.
-- **Summary Metrics Matrix:** Side-by-side table comparing all 12 performance indicators with automatic `(BEST)` identification.
-- **Per-Class F1 Breakdown Table:** Granular F1 scores for each of the 8 conditions categorized by clinical group.
-- **Clinical Evaluation Notes:** Contextual medical guidance explaining Differential Diagnosis for academic presentation.
+### Tab 2: Model Performance
+- **Summary Cards:** Top-1 accuracy, AUC-ROC, sensitivity, parameters and training time per model.
+- **Metric Comparison Table:** 10 metrics side by side, best value per row highlighted.
+- **Per-Class F1:** Bars for each of the 8 classes per model.
+- **Confusion Matrices:** Test-set confusion matrix for each model.
 
 ---
 
@@ -280,14 +281,16 @@ The web interface is structured into two dedicated clinical tabs:
 with ONNX Runtime Web, so it can be hosted as static files (no Python server, images never leave the device).
 
 ```bash
-pip install onnx onnxscript onnxruntime   # one-time, for the export step
 python export_onnx.py                     # .pth -> web/public/models/*.onnx (+ metrics, samples); re-run after retraining
 
 cd web
 npm install
 npm run dev                               # local preview at http://localhost:5173
 npm run build                             # static site in web/dist/
+npm test                                  # checks browser preprocessing == torchvision
 ```
+
+If you change preprocessing, regenerate the test fixtures with `python web/test/make_fixtures.py`.
 
 Deploy `web/dist/` to any static host. For a Hugging Face **static** Space (free):
 

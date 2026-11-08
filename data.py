@@ -20,11 +20,12 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.utils.class_weight import compute_class_weight
 
 from config import (
     ISIC_2019_GT_CSV,
+    ISIC_2019_METADATA_CSV,
     ISIC_2019_IMAGE_DIR,
     ISIC_2019_LABEL_COLS,
     CLASS_CODES,
@@ -32,7 +33,6 @@ from config import (
     CLASS_NAMES_EN,
     CANCER_INDICES,
     BENIGN_INDICES,
-    NUM_CLASSES,
     IMAGE_SIZE,
     BATCH_SIZE,
     NUM_WORKERS,
@@ -95,7 +95,9 @@ def resolve_image_path(image_id: str, image_dir: Path) -> Optional[Path]:
 def load_and_prepare_data() -> pd.DataFrame:
     """
     Load ISIC 2019 ground truth CSV (one-hot encoded) and prepare
-    a DataFrame with columns: [image_id, dx, label, image_path].
+    a DataFrame with columns: [image_id, dx, label, group, image_path].
+    `group` is the lesion_id (or the image id when unknown), used to keep
+    all images of one lesion in the same split.
     """
     print("[INFO] Loading ISIC 2019 Training Ground Truth...")
     print(f"[INFO] CSV path: {ISIC_2019_GT_CSV}")
@@ -105,6 +107,10 @@ def load_and_prepare_data() -> pd.DataFrame:
         print(f"[ERROR] Ground truth CSV not found: {ISIC_2019_GT_CSV}")
         sys.exit(1)
 
+    if not ISIC_2019_METADATA_CSV.exists():
+        print(f"[ERROR] Metadata CSV not found (needed for lesion_id): {ISIC_2019_METADATA_CSV}")
+        sys.exit(1)
+
     if not ISIC_2019_IMAGE_DIR.exists():
         print(f"[ERROR] Image directory not found: {ISIC_2019_IMAGE_DIR}")
         sys.exit(1)
@@ -112,6 +118,11 @@ def load_and_prepare_data() -> pd.DataFrame:
     # Read one-hot encoded ground truth
     gt_df = pd.read_csv(ISIC_2019_GT_CSV)
     print(f"[INFO] Loaded {len(gt_df)} entries from ground truth CSV")
+
+    # Several images can show the same lesion; group them so no lesion spans two splits
+    meta = pd.read_csv(ISIC_2019_METADATA_CSV, usecols=["image", "lesion_id"])
+    gt_df = gt_df.merge(meta, on="image", how="left")
+    gt_df["group"] = gt_df["lesion_id"].fillna(gt_df["image"])
 
     # Convert one-hot to single diagnosis label
     gt_df["dx"] = gt_df[ISIC_2019_LABEL_COLS].idxmax(axis=1)
@@ -146,6 +157,7 @@ def load_and_prepare_data() -> pd.DataFrame:
                 "image_id": row["image"],
                 "dx": row["dx"],
                 "label": row["label"],
+                "group": row["group"],
                 "image_path": str(img_path),
             })
         else:
@@ -182,30 +194,32 @@ def load_and_prepare_data() -> pd.DataFrame:
 # Data Splitting
 # =============================================================================
 
+def _group_split(df: pd.DataFrame, holdout: float) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Split off ~`holdout` of df, stratified by label, never splitting a lesion group."""
+    sgkf = StratifiedGroupKFold(n_splits=round(1 / holdout), shuffle=True, random_state=RANDOM_SEED)
+    keep_idx, hold_idx = next(sgkf.split(df, df["label"], groups=df["group"]))
+    return df.iloc[keep_idx], df.iloc[hold_idx]
+
+
 def split_data(
     df: pd.DataFrame,
     test_size: float = 0.15,
     val_size: float = 0.15,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Stratified split into train/val/test sets.
-    Maintains class distribution across all splits.
+    Lesion-grouped, stratified split into train/val/test sets.
+    All images of one lesion land in the same split (no leakage), and class
+    distribution is kept close to the full set. Sizes are approximate because
+    whole lesions move together (1/round(1/size) of the data).
     """
-    print("[INFO] Splitting data (stratified by class label)...")
+    print("[INFO] Splitting data (grouped by lesion, stratified by class label)...")
 
-    # First split: train+val vs test
-    train_val_df, test_df = train_test_split(
-        df, test_size=test_size, random_state=RANDOM_SEED, stratify=df["label"]
-    )
+    train_val_df, test_df = _group_split(df, test_size)
+    train_df, val_df = _group_split(train_val_df, val_size / (1 - test_size))
 
-    # Second split: train vs val
-    relative_val_size = val_size / (1 - test_size)
-    train_df, val_df = train_test_split(
-        train_val_df,
-        test_size=relative_val_size,
-        random_state=RANDOM_SEED,
-        stratify=train_val_df["label"],
-    )
+    # Leakage self-check: no lesion may appear in more than one split
+    tr, va, te = (set(d["group"]) for d in (train_df, val_df, test_df))
+    assert not (tr & va or tr & te or va & te), "Lesion leakage between splits"
 
     train_df = train_df.reset_index(drop=True)
     val_df = val_df.reset_index(drop=True)

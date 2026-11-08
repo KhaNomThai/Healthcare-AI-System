@@ -15,10 +15,11 @@ scikit-learn==1.9.1
 
 # Plotting & Visualization
 matplotlib==3.11.2
-seaborn==0.13.2
 
 # Utilities & CLI Progress
 tqdm==4.70.1
 
-# Clinical Web Interface
-gradio==5.50.0
+# ONNX export for the web app (export_onnx.py)
+onnx==1.23.2
+onnxscript==0.7.2
+onnxruntime==1.31.1

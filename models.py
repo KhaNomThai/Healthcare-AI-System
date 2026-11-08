@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-from config import NUM_CLASSES, MODEL_REGISTRY
+from config import NUM_CLASSES
 
 
 # =============================================================================

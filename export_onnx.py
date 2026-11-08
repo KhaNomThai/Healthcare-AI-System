@@ -13,7 +13,6 @@ Usage (re-run after retraining):
 
 import json
 import shutil
-from pathlib import Path
 
 import numpy as np
 import onnx
@@ -80,6 +79,7 @@ def export_one(name: str) -> dict:
 
 
 def main():
+    shutil.rmtree(OUT / "examples", ignore_errors=True)  # drop samples that were removed from examples/
     for sub in ("models", "cm", "examples"):
         (OUT / sub).mkdir(parents=True, exist_ok=True)
 

@@ -5,16 +5,15 @@ main.py -- Entry Point
 
 CLI interface for the Skin Cancer Multi-class Classification & Screening
 System. Supports training all or individual models, evaluation, model
-comparison, and launching the Gradio web demo.
+comparison. The demo UI lives in web/ (see export_onnx.py).
 
 Usage:
-    python main.py                    # Train all models + evaluate + demo
+    python main.py                    # Train all models + evaluate
     python main.py --model ResNet50   # Train a specific model only
-    python main.py --demo             # Launch Gradio demo (pre-trained models)
-    python main.py --skip-train       # Skip training, evaluate + demo
+    python main.py --skip-train       # Skip training, evaluate existing checkpoints
 """
 
-import sys
+import json
 import argparse
 
 import torch
@@ -41,28 +40,6 @@ from evaluate import (
     save_model_metrics,
     print_comparison_table,
 )
-from ui import launch_gradio_demo
-
-
-def _find_best_available_model(device: torch.device):
-    """
-    Find the best available model (by checkpoint existence) and load it.
-    Returns (model_name, model) or exits if no checkpoint is found.
-    """
-    for name in MODEL_NAMES:
-        checkpoint = MODEL_REGISTRY[name]["checkpoint"]
-        if checkpoint.exists():
-            print(f"[INFO] Loading {name} from: {checkpoint}")
-            model = build_model(name, device, pretrained=False)
-            model.load_state_dict(
-                torch.load(checkpoint, map_location=device, weights_only=True)
-            )
-            model.eval()
-            return name, model
-
-    print("[ERROR] No trained model checkpoints found.")
-    print("[ERROR] Please train models first: python main.py")
-    sys.exit(1)
 
 
 def main():
@@ -71,14 +48,9 @@ def main():
         description="Skin Cancer Multi-class Classification & Screening System"
     )
     parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Launch Gradio demo only (skip training and evaluation)",
-    )
-    parser.add_argument(
         "--skip-train",
         action="store_true",
-        help="Skip training, run evaluation on test set and launch demo",
+        help="Skip training, evaluate existing checkpoints on the test set",
     )
     parser.add_argument(
         "--model",
@@ -92,13 +64,6 @@ def main():
     set_seed()
     print_banner()
     device = get_device()
-
-    # --- Demo-only mode ---
-    if args.demo:
-        print("[INFO] Demo mode: loading pre-trained model...")
-        model_name, model = _find_best_available_model(device)
-        launch_gradio_demo(model_name, model, device)
-        return
 
     # --- Determine which models to train ---
     if args.model:
@@ -134,16 +99,21 @@ def main():
                 model, model_name, train_loader, val_loader, device, class_weights
             )
         else:
-            train_time = 0.0
             checkpoint = MODEL_REGISTRY[model_name]["checkpoint"]
-            if checkpoint.exists():
-                print(f"[INFO] Skipping training. Loading from: {checkpoint}")
-                model.load_state_dict(
-                    torch.load(checkpoint, map_location=device, weights_only=True)
-                )
-            else:
-                print(f"[WARNING] No checkpoint found for {model_name}")
-                print("[WARNING] Evaluation will use randomly initialized weights")
+            if not checkpoint.exists():
+                # Evaluating random weights would overwrite the real metrics JSON
+                print(f"[WARNING] No checkpoint found for {model_name}, skipping")
+                continue
+            print(f"[INFO] Skipping training. Loading from: {checkpoint}")
+            model.load_state_dict(
+                torch.load(checkpoint, map_location=device, weights_only=True)
+            )
+            # Keep the recorded training time instead of resetting it to 0
+            metrics_file = MODEL_REGISTRY[model_name]["metrics_file"]
+            train_time = (
+                json.loads(metrics_file.read_text()).get("training_time_seconds", 0.0)
+                if metrics_file.exists() else 0.0
+            )
 
         # Evaluate on test set
         print()
@@ -163,12 +133,6 @@ def main():
     # --- Print comparison table (if multiple models) ---
     if len(models_to_train) > 1:
         print_comparison_table()
-
-    # --- Launch demo with the first available model ---
-    print()
-    print("[INFO] Starting Gradio Clinical Demo...")
-    model_name, model = _find_best_available_model(device)
-    launch_gradio_demo(model_name, model, device)
 
 
 if __name__ == "__main__":

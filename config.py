@@ -12,13 +12,12 @@ across the entire pipeline.
 # System Setup
 # =============================================================================
 
-import sys
 import random
 import warnings
 import tempfile
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -27,17 +26,12 @@ import torch
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# macOS SSL certificate bypass (required for downloading pretrained weights)
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-
 # Matplotlib: configure cache and use non-interactive backend (macOS compatibility)
 _mpl_dir = str(Path(tempfile.gettempdir()) / "mpl_cache")
 os.makedirs(_mpl_dir, exist_ok=True)
 os.environ["MPLCONFIGDIR"] = _mpl_dir
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402, F401
 
 
 # =============================================================================
@@ -59,6 +53,7 @@ if (_isic_input_dir / "ISIC_2019_Training_Input").exists():
 else:
     ISIC_2019_IMAGE_DIR = _isic_input_dir
 ISIC_2019_GT_CSV = ISIC_2019_DIR / "ISIC_2019_Training_GroundTruth.csv"
+ISIC_2019_METADATA_CSV = ISIC_2019_DIR / "ISIC_2019_Training_Metadata.csv"  # lesion_id for grouped split
 
 
 # =============================================================================
@@ -182,8 +177,6 @@ def set_seed(seed: int = RANDOM_SEED) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        torch.manual_seed(seed)
 
 
 def get_device() -> torch.device:

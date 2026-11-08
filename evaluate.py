@@ -10,7 +10,7 @@ comparison tables.
 
 import json
 from pathlib import Path
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, Dict, Optional
 
 import numpy as np
 import torch
@@ -26,15 +26,14 @@ from sklearn.metrics import (
     recall_score,
     precision_score,
     accuracy_score,
+    roc_auc_score,
 )
 
 from config import (
-    BASE_DIR,
     CLASS_CODES,
     CLASS_NAMES_EN,
     NUM_CLASSES,
     CANCER_INDICES,
-    BENIGN_INDICES,
     MODEL_REGISTRY,
     MODEL_NAMES,
 )
@@ -67,6 +66,14 @@ def evaluate_on_test_set(
             all_probs.extend(probs.cpu().numpy())
 
     return np.array(all_labels), np.array(all_preds), np.array(all_probs)
+
+
+def _binary_screening(labels: np.ndarray, probs: np.ndarray):
+    """Cancer vs benign, same rule as the web UI: P(cancer group) >= 0.5.
+    Returns (binary_labels, binary_preds, cancer_prob)."""
+    binary_labels = np.isin(labels, list(CANCER_INDICES)).astype(int)
+    cancer_prob = probs[:, sorted(CANCER_INDICES)].sum(axis=1)
+    return binary_labels, (cancer_prob >= 0.5).astype(int), cancer_prob
 
 
 # =============================================================================
@@ -108,8 +115,7 @@ def print_evaluation_report(
     print("[INFO] Binary Cancer Screening Metrics (Grouped)")
     print("-" * 80)
 
-    binary_labels = np.array([1 if lbl in CANCER_INDICES else 0 for lbl in labels])
-    binary_preds = np.array([1 if pred in CANCER_INDICES else 0 for pred in preds])
+    binary_labels, binary_preds, _ = _binary_screening(labels, probs)
 
     cancer_sensitivity = recall_score(binary_labels, binary_preds, pos_label=1, zero_division=0)
     cancer_specificity = recall_score(binary_labels, binary_preds, pos_label=0, zero_division=0)
@@ -232,21 +238,14 @@ def save_model_metrics(
     top3_correct = np.array([lbl in top3_preds[i] for i, lbl in enumerate(labels)])
     top3_acc = np.mean(top3_correct)
 
-    binary_labels = np.array([1 if lbl in CANCER_INDICES else 0 for lbl in labels])
-    cancer_indices_list = list(CANCER_INDICES)
-    cancer_prob = np.sum(probs[:, cancer_indices_list], axis=1)
-    binary_preds = (cancer_prob >= 0.5).astype(int)
+    binary_labels, binary_preds, cancer_prob = _binary_screening(labels, probs)
 
     binary_acc = accuracy_score(binary_labels, binary_preds)
     cancer_sensitivity = recall_score(binary_labels, binary_preds, pos_label=1, zero_division=0)
     cancer_specificity = recall_score(binary_labels, binary_preds, pos_label=0, zero_division=0)
     false_negative_rate = 1.0 - cancer_sensitivity
 
-    try:
-        from sklearn.metrics import roc_auc_score
-        cancer_auc = roc_auc_score(binary_labels, cancer_prob)
-    except Exception:
-        cancer_auc = 0.0
+    cancer_auc = roc_auc_score(binary_labels, cancer_prob)
 
     # Per-class F1
     per_class_f1 = {}
