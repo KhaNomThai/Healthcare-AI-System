@@ -1,24 +1,9 @@
-import { useEffect, useState } from "react";
-import { CodePill } from "./Screening.jsx";
-
-const pct = (p) => `${(p * 100).toFixed(1)}%`;
-
-// Animate bars from 0 on each new result.
-function useGrow(key) {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    setOn(false);
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => setOn(true)));
-    return () => cancelAnimationFrame(id);
-  }, [key]);
-  return on;
-}
+import { CodePill, CountUp, pct, shortName, useGrow } from "./ui.jsx";
 
 export default function Result({ probs, classes, model, groundTruth }) {
   const grow = useGrow(probs);
   const missRate = model.metrics?.false_negative_rate; // share of test-set cancers this model called benign
   const cancerProb = probs.reduce((s, p, i) => s + (classes[i].cancer ? p : 0), 0);
-  const benignProb = 1 - cancerProb;
   const highRisk = cancerProb >= 0.5;
   const top = probs.indexOf(Math.max(...probs));
   const topClass = classes[top];
@@ -29,7 +14,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
       .sort((a, b) => b.p - a.p);
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       {/* Level 1 */}
       <section
         className={`rounded-2xl border p-5 shadow-sm ${
@@ -39,21 +24,22 @@ export default function Result({ probs, classes, model, groundTruth }) {
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
             <div className="eyebrow">Level 1 — Binary Clinical Triage</div>
-            <div className="mt-0.5 text-[11.5px] text-slate-500">
+            <div className="mt-0.5 text-[12.5px] text-slate-500">
               Evaluated by <strong className="text-slate-900">{model.name}</strong>
             </div>
           </div>
-          <span
-            className={`rounded-full px-3.5 py-1 text-[11px] font-bold tracking-wide text-white shadow ${
-              highRisk ? "bg-red-700" : "bg-green-700"
-            }`}
-          >
-            {highRisk ? "HIGH RISK — ELEVATED MALIGNANCY PROBABILITY" : "LOWER ESTIMATED RISK — DOES NOT RULE OUT CANCER"}
+          <span className={`rounded-full px-3.5 py-1 text-[13px] font-bold text-white shadow ${highRisk ? "bg-red-700" : "bg-green-700"}`}>
+            {highRisk ? "Higher risk" : "Lower risk"}
           </span>
         </div>
-        <div className="grid gap-4 rounded-xl border border-slate-900/5 bg-white/80 p-4 sm:grid-cols-2">
-          <Meter label="Cancer / Pre-Cancer" value={cancerProb} grow={grow} tone="red" />
-          <Meter label="Benign (Non-Cancer)" value={benignProb} grow={grow} tone="green" />
+        <div className="flex flex-col items-center gap-5 rounded-xl border border-slate-900/5 bg-white/80 p-4 sm:flex-row">
+          <Gauge value={cancerProb} grow={grow} highRisk={highRisk} />
+          <div className="w-full flex-1">
+            <p className="text-[14px] font-semibold text-slate-900">
+              {highRisk ? "Elevated probability of a malignant or pre-cancerous lesion." : "Leans benign — this does not rule out cancer."}
+            </p>
+            <SplitBar cancer={cancerProb} grow={grow} />
+          </div>
         </div>
       </section>
 
@@ -63,28 +49,29 @@ export default function Result({ probs, classes, model, groundTruth }) {
           <div>
             <div className="eyebrow mb-1">Primary Suspected Condition (Top-1)</div>
             <div className="text-[17px] font-bold text-slate-900">{topClass.nameEn}</div>
-            <div className="text-[13px] font-medium text-slate-600">{topClass.nameTh}</div>
+            <div lang="th" className="text-[14px] font-medium text-slate-600">{topClass.nameTh}</div>
           </div>
           <div className="text-right">
             <span
-              className={`inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold ${
+              className={`inline-block rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${
                 topClass.cancer ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
               }`}
             >
               {topClass.cancer ? "Cancer / Pre-Cancer Group" : "Benign Lesion Group"}
             </span>
-            <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[12px] font-bold text-slate-900">
+            <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[13px] font-bold text-slate-900">
               Model score: {pct(probs[top])}
             </div>
           </div>
         </div>
-        <div className="mt-3 border-t border-slate-100 pt-3 text-[12px] leading-relaxed">
+        {topClass.cancer !== highRisk && <Mismatch topClass={topClass} cancerProb={cancerProb} />}
+        <div className="mt-3 border-t border-slate-100 pt-3 text-[13px] leading-relaxed">
           <p className="text-slate-600">{topClass.descEn}</p>
-          <p className="mt-1 text-slate-500">{topClass.descTh}</p>
+          <p lang="th" className="mt-1 text-slate-500">{topClass.descTh}</p>
         </div>
         {groundTruth && (
           <div
-            className={`mt-3 rounded-lg px-3 py-2 text-[11.5px] font-medium ${
+            className={`mt-3 rounded-lg px-3 py-2 text-[12.5px] font-medium ${
               groundTruth === topClass.code ? "bg-blue-50 text-blue-800" : "bg-amber-50 text-amber-800"
             }`}
           >
@@ -97,27 +84,27 @@ export default function Result({ probs, classes, model, groundTruth }) {
       {/* Level 2 */}
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
+          <span className="text-[12px] font-bold uppercase tracking-wider text-slate-900">
             Level 2 — Sub-Type Differential Probability
           </span>
-          <span className="text-[10.5px] text-slate-500">8 Classes</span>
+          <span className="text-[11.5px] text-slate-500">{classes.length} Classes</span>
         </div>
         <div className="p-5">
           {[true, false].map((cancer) => (
             <div key={String(cancer)} className={cancer ? "" : "mt-4"}>
               <div
-                className={`mb-2 border-b pb-1.5 text-[10.5px] font-bold uppercase tracking-wider ${
+                className={`mb-2 border-b pb-1.5 text-[11.5px] font-bold uppercase tracking-wider ${
                   cancer ? "border-red-100 text-red-700" : "border-green-100 text-green-700"
                 }`}
               >
                 {cancer ? "Cancer / Pre-Cancer Sub-Types" : "Benign Lesion Sub-Types"}
               </div>
               {rows(cancer).map((c) => (
-                <div key={c.code} className="flex items-center gap-3 py-1.5">
+                <div key={c.code} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50">
                   <CodePill code={c.code} cancer={cancer} />
-                  <div className="min-w-0 flex-1 text-[12px]">
-                    <span className="font-medium text-slate-900">{c.nameEn.replace(/\s*\(.*\)$/, "")}</span>
-                    <span className="ml-1.5 hidden text-slate-400 sm:inline">({c.nameTh.replace(/\s*\(.*\)$/, "")})</span>
+                  <div className="min-w-0 flex-1 text-[13px]">
+                    <span className="font-medium text-slate-900">{shortName(c.nameEn)}</span>
+                    <span lang="th" className="ml-1.5 hidden text-slate-500 sm:inline">({shortName(c.nameTh)})</span>
                   </div>
                   <div className={`h-1.5 w-20 shrink-0 overflow-hidden rounded-full sm:w-32 ${cancer ? "bg-red-100" : "bg-green-100"}`}>
                     <div
@@ -125,7 +112,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
                       style={{ width: grow ? `${Math.max(c.p * 100, 0.5)}%` : 0 }}
                     />
                   </div>
-                  <span className={`w-12 text-right text-[12px] font-bold ${cancer ? "text-red-700" : "text-green-700"}`}>
+                  <span className={`w-12 text-right text-[13px] font-bold tabular-nums ${cancer ? "text-red-700" : "text-green-700"}`}>
                     {pct(c.p)}
                   </span>
                 </div>
@@ -137,11 +124,11 @@ export default function Result({ probs, classes, model, groundTruth }) {
 
       {/* Recommendation */}
       <section
-        className={`rounded-xl border border-l-4 p-4 text-[12px] leading-relaxed ${
+        className={`rounded-xl border border-l-4 p-4 text-[13px] leading-relaxed ${
           highRisk ? "border-red-200 border-l-red-700 bg-red-50" : "border-green-200 border-l-green-700 bg-green-50"
         }`}
       >
-        <div className={`mb-1.5 text-[10.5px] font-bold uppercase tracking-wider ${highRisk ? "text-red-700" : "text-green-700"}`}>
+        <div className={`mb-1.5 text-[11.5px] font-bold uppercase tracking-wider ${highRisk ? "text-red-700" : "text-green-700"}`}>
           Clinical Triage Recommendation
         </div>
         {highRisk ? (
@@ -150,7 +137,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
               Elevated probability for malignant or pre-cancerous lesion detected. Referral to a dermatologist for
               clinical evaluation and possible biopsy is strongly recommended.
             </p>
-            <p className="mt-1 text-slate-600">
+            <p lang="th" className="mt-1 text-slate-600">
               ตรวจพบความเสี่ยงสูงต่อรอยโรคมะเร็งหรือก่อนมะเร็ง แนะนำให้ส่งต่อแพทย์ผิวหนังเพื่อประเมินทางคลินิก
               และพิจารณาตรวจชิ้นเนื้อยืนยันผลทางพยาธิวิทยา
             </p>
@@ -163,7 +150,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
               monitoring the lesion, and see a physician if it changes in size, color or border, or if you are
               concerned.
             </p>
-            <p className="mt-1 text-slate-600">
+            <p lang="th" className="mt-1 text-slate-600">
               โมเดลประเมินว่าน่าจะเป็นรอยโรคที่ไม่ร้ายแรง แต่ไม่สามารถตัดความเป็นมะเร็งออกได้
               {missRate != null && <> (ในชุดทดสอบ โมเดลพลาดมะเร็งประมาณ {pct(missRate)})</>} ควรสังเกตรอยโรคต่อไป
               และปรึกษาแพทย์หากขนาด สี หรือขอบเปลี่ยนแปลง หรือมีข้อกังวล
@@ -172,7 +159,7 @@ export default function Result({ probs, classes, model, groundTruth }) {
         )}
       </section>
 
-      <p className="text-center text-[10.5px] leading-relaxed text-slate-400">
+      <p className="text-center text-[11.5px] leading-relaxed text-slate-500">
         For educational and research purposes only (CPE310). Model scores are uncalibrated estimates, not
         diagnostic certainty, and do not constitute a medical diagnosis.
       </p>
@@ -180,21 +167,80 @@ export default function Result({ probs, classes, model, groundTruth }) {
   );
 }
 
-function Meter({ label, value, grow, tone }) {
-  const red = tone === "red";
+// Level 1 sums all cancer sub-types, Top-1 is the single highest class, so they can disagree.
+function Mismatch({ topClass, cancerProb }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[12px] font-semibold text-slate-700">{label}</span>
-        <span className={`text-lg font-extrabold ${red ? "text-red-700" : "text-green-700"}`}>{pct(value)}</span>
-      </div>
-      <div className={`h-2 overflow-hidden rounded-full ${red ? "bg-red-100" : "bg-green-100"}`}>
-        <div
-          className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out ${
-            red ? "from-red-500 to-red-700" : "from-green-500 to-green-700"
-          }`}
-          style={{ width: grow ? pct(value) : 0 }}
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] leading-relaxed text-amber-900">
+      {topClass.cancer ? (
+        <>
+          <p>
+            <strong>Note:</strong> the single most likely class is a cancer type, although all cancer sub-types together
+            score only {pct(cancerProb)}. Treat this lesion as suspicious and have it checked.
+          </p>
+          <p lang="th" className="mt-0.5 text-amber-800">
+            คลาสที่มีคะแนนสูงสุดเป็นกลุ่มมะเร็ง แม้คะแนนรวมกลุ่มมะเร็งจะต่ำกว่า 50% ควรถือว่าน่าสงสัยและปรึกษาแพทย์
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            <strong>Note:</strong> the single most likely class is benign, but the cancer sub-types together add up to{" "}
+            {pct(cancerProb)}. The Level 1 risk above takes priority.
+          </p>
+          <p lang="th" className="mt-0.5 text-amber-800">
+            คลาสที่มีคะแนนสูงสุดเป็นกลุ่มไม่ร้ายแรง แต่คะแนนรวมของกลุ่มมะเร็งสูงกว่า ให้ยึดผลความเสี่ยง Level 1 ด้านบนเป็นหลัก
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Gauge({ value, grow, highRisk }) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="relative h-32 w-32 shrink-0">
+      <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+        <circle cx="50" cy="50" r={r} fill="none" strokeWidth="9" className="stroke-slate-100" />
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={grow ? c * (1 - value) : c}
+          className={`transition-[stroke-dashoffset] duration-1000 ease-out ${highRisk ? "stroke-red-600" : "stroke-green-600"}`}
         />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-2xl font-extrabold tabular-nums ${highRisk ? "text-red-700" : "text-green-700"}`}>
+          <CountUp value={value} />
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cancer score</span>
+      </div>
+    </div>
+  );
+}
+
+// One bar split into cancer (red) vs benign (green); the two shares always sum to 100%.
+function SplitBar({ cancer, grow }) {
+  const w = grow ? cancer : 0.5;
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex justify-between text-[13px] font-semibold">
+        <span className="text-red-700">
+          Cancer / Pre-Cancer <span className="tabular-nums">{pct(cancer)}</span>
+        </span>
+        <span className="text-green-700">
+          Benign <span className="tabular-nums">{pct(1 - cancer)}</span>
+        </span>
+      </div>
+      <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+        <div className="rounded-l-full bg-red-600 transition-[width] duration-700 ease-out" style={{ width: pct(w) }} />
+        <div className="flex-1 rounded-r-full bg-green-600" />
       </div>
     </div>
   );

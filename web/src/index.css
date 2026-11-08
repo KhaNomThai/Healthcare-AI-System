@@ -2,19 +2,60 @@
 
 @theme {
   --font-sans: "Inter", "Sarabun", ui-sans-serif, system-ui, sans-serif;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-scan: scan 1.6s ease-in-out infinite alternate;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-indeterminate: indeterminate 1.2s ease-in-out infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+  }
+  @keyframes scan {
+    from { top: 0%; }
+    to { top: 100%; }
+  }
+  @keyframes indeterminate {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(300%); }
+  }
+  @keyframes float {
+    50% { transform: translate(12px, -10px) scale(1.05); }
+  }
 }
 
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
   background-image:
-    radial-gradient(at 0% 0%, rgb(37 99 235 / 0.06) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgb(15 23 42 / 0.04) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgb(37 99 235 / 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgb(13 148 136 / 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgb(37 99 235 / 0.04) 0px, transparent 50%);
   background-attachment: fixed;
 }
 
 .card {
-  @apply rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgb(15_23_42/0.05)];
+  @apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(15_23_42/0.05)] transition-shadow duration-300;
+}
+.card-hover {
+  @apply transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-12px_rgb(15_23_42/0.25)];
 }
 .eyebrow {
-  @apply text-[10.5px] font-bold uppercase tracking-[0.08em] text-slate-500;
+  @apply text-[11.5px] font-bold uppercase tracking-[0.08em] text-slate-500;
+}
+
+/* Children fade up one after another. */
+.stagger > * {
+  @apply animate-rise;
+}
+.stagger > :nth-child(2) { animation-delay: 70ms; }
+.stagger > :nth-child(3) { animation-delay: 140ms; }
+.stagger > :nth-child(4) { animation-delay: 210ms; }
+.stagger > :nth-child(5) { animation-delay: 280ms; }
+.stagger > :nth-child(n + 6) { animation-delay: 350ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
