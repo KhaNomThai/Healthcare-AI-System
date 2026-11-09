@@ -57,10 +57,11 @@ ISIC_2019_METADATA_CSV = ISIC_2019_DIR / "ISIC_2019_Training_Metadata.csv"  # le
 
 IMAGE_SIZE = 224                   # Input image resolution (pixels)
 BATCH_SIZE = 32                    # Mini-batch size
-NUM_EPOCHS = 15                    # Maximum training epochs
-LEARNING_RATE = 1e-4               # Initial learning rate for AdamW
+NUM_EPOCHS = 30                    # Maximum training epochs
+LEARNING_RATE = 1e-4               # Initial learning rate for the new classifier head
+BACKBONE_LR_FACTOR = 0.1           # Unfrozen pretrained layers learn 10x slower than the head
 WEIGHT_DECAY = 1e-2                # L2 regularization coefficient
-EARLY_STOPPING_PATIENCE = 3        # Epochs to wait before early stopping
+EARLY_STOPPING_PATIENCE = 6        # Epochs to wait before early stopping
 NUM_CLASSES = 8                    # Total disease classes
 NUM_WORKERS = 2                    # DataLoader workers (limited for macOS fork safety)
 PIN_MEMORY = torch.cuda.is_available()  # Pinned memory only helps CUDA (unsupported on MPS)

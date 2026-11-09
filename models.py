@@ -22,13 +22,13 @@ from config import NUM_CLASSES
 def _build_resnet50(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build ResNet50 with custom classifier head.
-    Fine-tunes layer4 + fc; all earlier layers are frozen.
+    Fine-tunes layer3 + layer4 + fc; earlier layers are frozen.
     """
     model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None)
 
-    # Freeze all layers except layer4 and fc
+    # Freeze all layers except layer3, layer4 and fc
     for name, param in model.named_parameters():
-        if "layer4" not in name and "fc" not in name:
+        if not name.startswith(("layer3", "layer4", "fc")):
             param.requires_grad = False
 
     # Replace classifier head
@@ -47,13 +47,13 @@ def _build_resnet50(device: torch.device, num_classes: int = NUM_CLASSES, pretra
 def _build_efficientnet_b3(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build EfficientNet-B3 with custom classifier head.
-    Fine-tunes the last feature block + classifier; earlier blocks are frozen.
+    Fine-tunes the last three feature blocks + classifier; earlier blocks are frozen.
     """
     model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.IMAGENET1K_V1 if pretrained else None)
 
-    # Freeze all feature layers except the last block (features[8])
+    # Freeze all feature layers except features[6..8]
     for name, param in model.named_parameters():
-        if "features.8" not in name and "classifier" not in name:
+        if not name.startswith(("features.6", "features.7", "features.8", "classifier")):
             param.requires_grad = False
 
     # Replace classifier head (EfficientNet-B3 in_features = 1536)
@@ -73,13 +73,13 @@ def _build_efficientnet_b3(device: torch.device, num_classes: int = NUM_CLASSES,
 def _build_densenet121(device: torch.device, num_classes: int = NUM_CLASSES, pretrained: bool = True) -> nn.Module:
     """
     Build DenseNet121 with custom classifier head.
-    Fine-tunes denseblock4 + classifier; earlier blocks are frozen.
+    Fine-tunes denseblock3 + transition3 + denseblock4 + norm5 + classifier; earlier blocks are frozen.
     """
     model = models.densenet121(weights=models.DenseNet121_Weights.IMAGENET1K_V1 if pretrained else None)
 
-    # Freeze all feature layers except denseblock4
+    # Freeze all feature layers except the last dense blocks and the final norm
     for name, param in model.named_parameters():
-        if "denseblock4" not in name and "classifier" not in name:
+        if not name.startswith(("features.denseblock3", "features.transition3", "features.denseblock4", "features.norm5", "classifier")):
             param.requires_grad = False
 
     # Replace classifier head (DenseNet121 in_features = 1024)

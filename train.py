@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from config import (
     LEARNING_RATE,
+    BACKBONE_LR_FACTOR,
     WEIGHT_DECAY,
     NUM_EPOCHS,
     EARLY_STOPPING_PATIENCE,
@@ -163,8 +164,13 @@ def train_model(
     print("=" * 80)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights)
+    # New head (fc / classifier) learns at LEARNING_RATE; unfrozen pretrained layers slower so they are not wrecked early
+    head, backbone = [], []
+    for name, p in model.named_parameters():
+        if p.requires_grad:
+            (head if name.startswith(("fc.", "classifier.")) else backbone).append(p)
     optimizer = optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
+        [{"params": backbone, "lr": LEARNING_RATE * BACKBONE_LR_FACTOR}, {"params": head}],
         lr=LEARNING_RATE,
         weight_decay=WEIGHT_DECAY,
     )
@@ -184,7 +190,7 @@ def train_model(
         )
         val_loss, val_f1 = validate(model, val_loader, criterion, device, epoch)
 
-        current_lr = optimizer.param_groups[0]["lr"]
+        current_lr = optimizer.param_groups[-1]["lr"]  # head LR
         epoch_time = time.time() - epoch_start
 
         print(
