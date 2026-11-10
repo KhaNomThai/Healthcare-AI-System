@@ -161,9 +161,9 @@ Linear(in_features, 512) -> ReLU -> BatchNorm1d(512) -> Dropout(0.3) -> Linear(5
 
 | Architecture | Total Parameters | Trainable Parameters | Fine-Tuning Backbone Depth |
 |---|---:|---:|---|
-| **ResNet50** | 24,562,248 | 16,018,952 | Layer 4 + Classifier Head |
-| **EfficientNet-B3** | 11,488,304 | 1,384,968 | Top Stage (Block 8) + Head |
-| **DenseNet121** | 7,483,784 | 2,688,008 | DenseBlock 4 + Transition + Head |
+| **ResNet50** | 24,562,248 | 23,117,320 | Layer 3 + Layer 4 + Classifier Head |
+| **EfficientNet-B3** | 11,488,304 | 9,298,150 | Stages 6–8 + Head |
+| **DenseNet121** | 7,483,784 | 6,054,152 | DenseBlock 3–4 + Transitions + Head |
 
 ---
 
@@ -171,24 +171,24 @@ Linear(in_features, 512) -> ReLU -> BatchNorm1d(512) -> Dropout(0.3) -> Linear(5
 
 Values below are copied from `metrics_*.json` (also shown in the web app's Model Performance tab).
 
-> [!WARNING]
-> These numbers were measured with the **old image-level split**, where 2,333 of the 3,800 test images
-> showed a lesion that also appeared in training. They are optimistic. Retrain with the current
-> lesion-grouped split (`python main.py`) and update this table from the new `metrics_*.json`.
+All numbers are on a **lesion-grouped** test split: every image of a lesion is in exactly one of
+train / validation / test, so the model is never tested on a lesion it saw during training. This is
+stricter (and lower) than the image-level random splits common in public notebooks.
 
 | Performance Metric | ResNet50 | DenseNet121 | EfficientNet-B3 | Clinical Benchmark Target |
 |---|:---:|:---:|:---:|:---:|
-| **Top-2 Differential Diagnosis** | **91.50% (Best)** | 85.21% | 78.39% | Primary Clinical Target (≥ 85%) |
-| **Top-3 Differential Diagnosis** | **96.50% (Best)** | 92.55% | 88.32% | Secondary Triage Target (≥ 90%) |
-| **Cancer Screening AUC-ROC** | **0.9245 (Best)** | 0.8934 | 0.8658 | Diagnostic Gold Standard (≥ 0.90) |
-| **Binary Malignancy Screening** | **85.37% (Best)** | 81.39% | 79.53% | Malignant vs Benign Triage |
-| **Exact 8-Class Match (Top-1)** | **75.66% (Best)** | 67.63% | 59.03% | Single Fine-Grained Label Match |
-| **Macro F1-Score** | **64.08% (Best)** | 53.07% | 42.80% | Cross-Class Balanced Harmonic Mean |
-| **Weighted F1-Score** | **75.67% (Best)** | 68.79% | 62.20% | Frequency-Weighted F1 |
-| **Cancer Sensitivity (Recall)** | **79.01% (Best)** | 77.94% | 73.59% | Malignancy Detection Rate |
-| **Cancer Specificity (Benign)** | **89.08% (Best)** | 83.41% | 82.99% | Non-Cancer Confirmation Rate |
-| **False Negative Rate (FNR)** | **20.99% (Best)** | 22.06% | 26.41% | Critical Missed Malignancy Rate |
-| **Training Duration** | 109.3 min | 58.0 min | 68.7 min | Wall-clock training time |
+| **Top-2 Differential Diagnosis** | **88.70% (Best)** | 86.96% | 84.80% | Primary Clinical Target (≥ 85%) |
+| **Top-3 Differential Diagnosis** | **94.89% (Best)** | 93.45% | 91.66% | Secondary Triage Target (≥ 90%) |
+| **Cancer Screening AUC-ROC** | **0.8854 (Best)** | 0.8852 | 0.8789 | Diagnostic Gold Standard (≥ 0.90) |
+| **Binary Malignancy Screening** | **75.38% (Best)** | 73.61% | 73.53% | Malignant vs Benign Triage |
+| **Exact 8-Class Match (Top-1)** | **71.73% (Best)** | 68.36% | 67.56% | Single Fine-Grained Label Match |
+| **Macro F1-Score** | **55.17% (Best)** | 50.63% | 49.42% | Cross-Class Balanced Harmonic Mean |
+| **Weighted F1-Score** | **72.12% (Best)** | 69.32% | 69.07% | Frequency-Weighted F1 |
+| **Cancer Sensitivity (Recall)** | 88.08% | **90.93% (Best)** | 89.88% | Malignancy Detection Rate (target 90% on validation) |
+| **Cancer Specificity (Benign)** | **67.96% (Best)** | 63.50% | 63.98% | Non-Cancer Confirmation Rate |
+| **False Negative Rate (FNR)** | 11.92% | **9.07% (Best)** | 10.12% | Critical Missed Malignancy Rate |
+| **Cancer Threshold** | 0.1849 | 0.2231 | 0.2707 | Tuned on validation set |
+| **Training Duration** | 228.3 min | 180.2 min | 135.2 min | Wall-clock training time |
 | **Total Model Parameters** | 24.6M | 7.5M | 11.5M | Model Footprint |
 
 ---
